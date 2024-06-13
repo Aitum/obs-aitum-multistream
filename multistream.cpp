@@ -429,7 +429,8 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 
 			bool scale = obs_data_get_bool(settings, "scale");
 			if (scale) {
-				obs_encoder_set_scaled_size(venc, obs_data_get_int(settings, "width"), obs_data_get_int(settings, "height"));
+				obs_encoder_set_scaled_size(venc, obs_data_get_int(settings, "width"),
+							    obs_data_get_int(settings, "height"));
 				obs_encoder_set_gpu_scale_type(venc, (obs_scale_type)obs_data_get_int(settings, "scale_type"));
 			}
 		}
@@ -482,7 +483,6 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	//password
 	auto service = obs_service_create("rtmp_custom", name, s, nullptr);
 	obs_data_release(s);
-
 
 	const char *type = obs_service_get_preferred_output_type(service);
 	if (!type) {
@@ -541,7 +541,8 @@ void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 
 void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 {
+	UNUSED_PARAMETER(calldata);
 	auto streamButton = (QPushButton *)data;
-	const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
+	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
 	streamButton->setChecked(false);
 }

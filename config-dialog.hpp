@@ -14,9 +14,6 @@
 #include <QFormLayout>
 #include <QRadioButton>
 
-
-class MultistreamDock;
-
 class OBSBasicSettings : public QDialog {
 	Q_OBJECT
 	Q_PROPERTY(QIcon generalIcon READ GetGeneralIcon WRITE SetGeneralIcon DESIGNABLE true)

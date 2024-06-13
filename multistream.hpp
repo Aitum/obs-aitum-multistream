@@ -1,13 +1,13 @@
 #pragma once
 
-#include <QFrame>
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <obs.h>
 #include "config-dialog.hpp"
+#include <obs.h>
+#include <obs-frontend-api.h>
+#include <QFrame>
+#include <QPushButton>
+#include <QVBoxLayout>
 
 class OBSBasicSettings;
-
 
 class MultistreamDock : public QFrame {
 	Q_OBJECT
@@ -41,4 +41,3 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 };
-

@@ -1,10 +1,26 @@
-#include <util/curl/curl-helper.h>
-#include <util/threading.h>
-#include <util/platform.h>
+#include "file-updater.h"
+#include <curl/curl.h>
+#include <obs-data.h>
 #include <util/darray.h>
 #include <util/dstr.h>
-#include <obs-data.h>
-#include "file-updater.h"
+#include <util/platform.h>
+#include <util/threading.h>
+
+#if defined(_WIN32) && LIBCURL_VERSION_NUM >= 0x072c00
+
+#ifdef CURLSSLOPT_REVOKE_BEST_EFFORT
+#define CURL_OBS_REVOKE_SETTING CURLSSLOPT_REVOKE_BEST_EFFORT
+#else
+#define CURL_OBS_REVOKE_SETTING CURLSSLOPT_NO_REVOKE
+#endif
+
+#define curl_obs_set_revoke_setting(handle) curl_easy_setopt(handle, CURLOPT_SSL_OPTIONS, CURL_OBS_REVOKE_SETTING)
+
+#else
+
+#define curl_obs_set_revoke_setting(handle)
+
+#endif
 
 #define warn(msg, ...) blog(LOG_WARNING, "%s" msg, info->log_prefix, ##__VA_ARGS__)
 #define info(msg, ...) blog(LOG_WARNING, "%s" msg, info->log_prefix, ##__VA_ARGS__)

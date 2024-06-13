@@ -4,7 +4,7 @@ on: workflow_dispatch
 
 env:
   PLUGIN_NAME: aitum-multistream
-  OBS_VERSION: 29.0.0-beta1
+  OBS_VERSION: 30.0.0
 jobs:
   macos:
     name: macOS
@@ -18,7 +18,7 @@ jobs:
     env:
       CODESIGN_IDENT: '-'
       CODESIGN_IDENT_INSTALLER: ''
-      MACOSX_DEPLOYMENT_TARGET: '10.15'
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
     defaults:
       run:
         shell: zsh {0}
@@ -185,21 +185,18 @@ jobs:
     name: 'Windows Build'
     runs-on: [windows-latest]
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        target: [x64, x86]
+        target: [x64]
         include:
           - target: x64
             cmake_build: 'x64'
             deps_ext: '64'
-          - target: x86
-            cmake_build: 'Win32'
-            deps_ext: '32'
     env:
       QT_VERSION: '6.3.1'
       CMAKE_GENERATOR: "Visual Studio 17 2022"
       CMAKE_SYSTEM_VERSION: "10.0.18363.657"
-      WINDOWS_DEPS_VERSION: '2022-08-02'
+      WINDOWS_DEPS_VERSION: '2023-11-03'
     steps:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v2
@@ -221,11 +218,11 @@ jobs:
       - name: 'Install prerequisite: QT'
         run: |
           curl -kLO https://github.com/obsproject/obs-deps/releases/download/${{ env.WINDOWS_DEPS_VERSION }}/windows-deps-qt6-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -f --retry 5 -C -
-          7z x windows-deps-qt6-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -o"${{ github.workspace }}/cmbuild/deps"
+          7z x windows-deps-qt6-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -o"${{ github.workspace }}/cmbuild/deps" -aoa
       - name: 'Install prerequisite: Pre-built dependencies'
         run: |
           curl -kLO https://github.com/obsproject/obs-deps/releases/download/${{ env.WINDOWS_DEPS_VERSION }}/windows-deps-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -f --retry 5 -C -
-          7z x windows-deps-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -o"${{ github.workspace }}/cmbuild/deps"
+          7z x windows-deps-${{ env.WINDOWS_DEPS_VERSION }}-${{ matrix.target }}.zip -o"${{ github.workspace }}/cmbuild/deps" -aoa
       - name: Configure
         run: |
           mkdir ./package
@@ -269,15 +266,8 @@ jobs:
           $env:FILE_DATE=(Get-Date -UFormat "%F")
           $env:FILE_NAME="${{ env.PLUGIN_NAME }}-${env:FILE_DATE}-${{ github.sha }}-windows"
           echo "FILE_NAME=${env:FILE_NAME}" >> ${env:GITHUB_ENV}
-          $env:FILE_NAME_X86="${{ env.PLUGIN_NAME }}-${{ github.sha }}-windows-x86"
-          echo "FILE_NAME_X86=${env:FILE_NAME_X86}" >> ${env:GITHUB_ENV}
           $env:FILE_NAME_X64="${{ env.PLUGIN_NAME }}-${{ github.sha }}-windows-x64"
           echo "FILE_NAME_X64=${env:FILE_NAME_X64}" >> ${env:GITHUB_ENV}
-      - name: Retrieve x86 build
-        uses: actions/download-artifact@v4.1.2
-        with:
-          name: '${{ env.FILE_NAME_X86 }}'
-          path: ./package
       - name: Retrieve x64 build
         uses: actions/download-artifact@v4.1.2
         with:
@@ -294,10 +284,6 @@ jobs:
           New-Item -ItemType directory -Path certificate
           Set-Content -Path certificate\certificate.txt -Value '${{ secrets.WINDOWS_CSC_LINK }}'
           certutil -decode certificate\certificate.txt certificate\certificate.pfx
-      - name: Code Sign 32
-        if: success() && github.event_name != 'pull_request'
-        run: |
-          & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x86/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.WINDOWS_CSC_PASS }}' /t http://timestamp.comodoca.com/authenticode .\package\obs-plugins\32bit\${{ env.PLUGIN_NAME }}.dll
       - name: Code Sign 64
         if: success() && github.event_name != 'pull_request'
         run: |
@@ -328,4 +314,4 @@ jobs:
       - name: Remove temp artifacts
         uses: geekyeggo/delete-artifact@v4.1.0
         with:
-          name: "${{ env.FILE_NAME_X86 }}\n${{ env.FILE_NAME_X64 }}\ninstaller-files"
+          name: "${{ env.FILE_NAME_X64 }}\ninstaller-files"

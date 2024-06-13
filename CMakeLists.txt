@@ -32,10 +32,10 @@ target_sources(${PROJECT_NAME} PRIVATE
 	file-updater.h)
 
 if(BUILD_OUT_OF_TREE)
+  include(cmake/ObsPluginHelpers.cmake)
   find_package(libobs REQUIRED)
   find_package(obs-frontend-api REQUIRED)
   find_package(CURL REQUIRED)
-  include(cmake/ObsPluginHelpers.cmake)
   find_qt(COMPONENTS Widgets COMPONENTS_LINUX Gui)
   set(OBS_FRONTEND_API_NAME "obs-frontend-api")
 else()

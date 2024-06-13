@@ -483,17 +483,10 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	auto service = obs_service_create("rtmp_custom", name, s, nullptr);
 	obs_data_release(s);
 
-#if LIBOBS_API_VER < MAKE_SEMANTIC_VERSION(29, 1, 0)
-	const char *type = obs_service_get_output_type(service);
-#else
+
 	const char *type = obs_service_get_preferred_output_type(service);
-#endif
 	if (!type) {
-#if LIBOBS_API_VER < MAKE_SEMANTIC_VERSION(29, 1, 0)
-		const char *url = obs_service_get_url(service);
-#else
 		const char *url = obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL);
-#endif
 		type = "rtmp_output";
 		if (url != NULL && strncmp(url, "ftl", 3) == 0) {
 			type = "ftl_output";

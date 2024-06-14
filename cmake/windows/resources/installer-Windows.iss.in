@@ -20,6 +20,11 @@ OutputBaseFilename={#MyAppName}-{#MyAppVersion}-Windows-Installer
 Compression=lzma
 SolidCompression=yes
 DirExistsWarning=no
+AllowNoIcons=yes
+; Wizard Information
+WizardStyle=modern
+WizardResizable=yes
+SetupIconFile="../media/icon.ico"
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -56,9 +61,44 @@ var
 begin
   // initialize default path, which will be returned when the following registry
   // key queries fail due to missing keys or for some different reason
-  Result := '{autopf}\obs-studio';
+  Result := ExpandConstant('{pf}\obs-studio');
   // query the first registry value; if this succeeds, return the obtained value
   if RegQueryStringValue(HKLM32, 'SOFTWARE\OBS Studio', '', InstallPath) then
-    Result := InstallPath
+    Result := InstallPath;
+  if RegQueryStringValue(HKLM64, 'SOFTWARE\OBS Studio', '', InstallPath) then
+    Result := InstallPath;
 end;
 
+/////////////////////////////////////////////////////////////////////
+function NextButtonClick(PageId: Integer): Boolean;
+var
+    ObsFileName: string;
+    ObsMS, ObsLS: Cardinal;
+    ObsMajorVersion, ObsMinorVersion: Cardinal;
+begin
+    Result := True;
+    if not (PageId = wpSelectDir) then begin
+        exit;
+    end;
+    ObsFileName := ExpandConstant('{app}\bin\64bit\obs64.exe');
+    if not FileExists(ObsFileName) then begin
+        MsgBox('OBS Studio (bin\64bit\obs64.exe) does not seem to be installed in that folder.  Please select the correct folder.', mbError, MB_OK);
+        Result := False;
+        exit;
+    end;
+    Result := GetVersionNumbers(ObsFileName, ObsMS, ObsLS);
+    if not Result then begin
+        MsgBox('Failed to read version from OBS Studio (bin\64bit\obs64.exe).', mbError, MB_OK);
+        Result := False;
+        exit;
+    end;
+    { shift 16 bits to the right to get major version }
+    ObsMajorVersion := ObsMS shr 16; 
+    { select only low 16 bits }
+    ObsMinorVersion := ObsMS and $FFFF;
+    if ObsMajorVersion < 30 then begin
+        MsgBox('Version of OBS Studio (bin\64bit\obs64.exe) is lower than the version 30 required.', mbError, MB_OK);
+        Result := False;
+        exit;
+    end;
+end;

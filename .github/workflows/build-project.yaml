@@ -269,6 +269,18 @@ jobs:
           target: x64
           config: ${{ needs.check-event.outputs.config }}
 
+      - name: Create Code Signing Certificate
+        if: success() && github.event_name != 'pull_request'
+        run: |
+            New-Item -ItemType directory -Path certificate
+            Set-Content -Path certificate\certificate.txt -Value '${{ secrets.WINDOWS_CSC_LINK }}'
+            certutil -decode certificate\certificate.txt certificate\certificate.pfx
+
+      - name: Code Sign 64
+        if: success() && github.event_name != 'pull_request'
+        run: |
+            & 'C:/Program Files (x86)/Windows Kits/10/bin/10.0.20348.0/x64/signtool.exe' sign /f certificate\certificate.pfx /p '${{ secrets.WINDOWS_CSC_PASS }}' /t http://timestamp.comodoca.com/authenticode .\release\${{ needs.check-event.outputs.config }}\obs-plugins\64bit\${{ steps.setup.outputs.pluginName }}.dll
+
       - name: Package Plugin 📀
         uses: ./.github/actions/package-plugin
         with:

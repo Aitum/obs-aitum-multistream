@@ -31,7 +31,7 @@
         "QT_VERSION": "6",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
-        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}"
+        "CODESIGN_TEAM": "$penv{APPLE_TEAM}"
       }
     },
     {

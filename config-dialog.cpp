@@ -205,7 +205,11 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	setLayout(vlayout);
 }
 
-OBSBasicSettings::~OBSBasicSettings() {}
+OBSBasicSettings::~OBSBasicSettings()
+{
+	for (auto it = video_encoder_properties.begin(); it != video_encoder_properties.end(); it++)
+		obs_properties_destroy(it->second);
+}
 
 QIcon OBSBasicSettings::GetGeneralIcon() const
 {

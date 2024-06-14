@@ -77,7 +77,8 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	settingsPages->addWidget(scrollArea);
 
 	auto mainOutputsPage = new QGroupBox;
-	mainOutputsPage->setStyleSheet(QString("QGroupBox{ padding-top: 4px;}"));
+	mainOutputsPage->setProperty("customTitle", QVariant(true));
+	mainOutputsPage->setStyleSheet(QString("QGroupBox[customTitle=\"true\"]{ padding-top: 4px;}"));
 	mainOutputsPage->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
 	scrollArea = new QScrollArea;

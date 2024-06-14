@@ -24,6 +24,9 @@
 #include "version.h"
 #include <util/dstr.h>
 
+void RemoveWidget(QWidget *widget);
+void RemoveLayoutItem(QLayoutItem *item);
+
 OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 {
 	setMinimumWidth(983);
@@ -344,11 +347,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		videoEncoderIndex->addItem(QString::number(i + 1));
 	}
 	videoEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "video_encoder_index"));
-	connect(videoEncoderIndex, &QComboBox::currentIndexChanged,
-		[videoEncoderIndex, settings] {
-			if (videoEncoderIndex->currentIndex() >= 0)
-				obs_data_set_int(settings, "video_encoder_index", videoEncoderIndex->currentIndex());
-		});
+	connect(videoEncoderIndex, &QComboBox::currentIndexChanged, [videoEncoderIndex, settings] {
+		if (videoEncoderIndex->currentIndex() >= 0)
+			obs_data_set_int(settings, "video_encoder_index", videoEncoderIndex->currentIndex());
+	});
 	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
 
 	auto videoEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VideoEncoder")));
@@ -374,7 +376,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_properties_destroy(t->second);
 					video_encoder_properties.erase(t);
 				}
-				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >=0; i--) {
+				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= 0; i--) {
 					videoEncoderGroupLayout->removeRow(i);
 				}
 				//auto stream_encoder_settings = obs_encoder_defaults(encoder);
@@ -430,16 +432,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
 	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings] {
-		if (serverGroup->layout()) {
-			QLayoutItem *item;
-			while ((item = serverGroup->layout()->takeAt(0)) != NULL) {
-				delete item->widget();
-				delete item;
-			}
-			delete serverGroup->layout();
-		}
 		outputsLayout->removeWidget(serverGroup);
-		delete serverGroup;
+		RemoveWidget(serverGroup);
 		auto outputs = obs_data_get_array(this->settings, "outputs");
 		auto count = obs_data_array_count(outputs);
 		for (size_t i = 0; i < count; i++) {
@@ -502,17 +496,7 @@ void OBSBasicSettings::LoadSettings(obs_data_t *settings)
 {
 	while (mainOutputsLayout->rowCount() > 2) {
 		auto i = mainOutputsLayout->takeRow(2).fieldItem;
-		if (i->widget()) {
-			if (i->widget()->layout()) {
-				QLayoutItem *item;
-				while ((item = i->widget()->layout()->takeAt(0)) != NULL) {
-					delete item->widget();
-					delete item;
-				}
-				delete i->widget()->layout();
-			}
-			delete i->widget();
-		}
+		RemoveLayoutItem(i);
 		mainOutputsLayout->removeRow(2);
 	}
 	this->settings = settings;

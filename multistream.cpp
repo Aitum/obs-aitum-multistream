@@ -38,6 +38,33 @@ void obs_module_unload()
 	}
 }
 
+void RemoveWidget(QWidget *widget);
+
+void RemoveLayoutItem(QLayoutItem *item)
+{
+	if (!item)
+		return;
+	RemoveWidget(item->widget());
+	if (item->layout()) {
+		while (QLayoutItem *item2 = item->layout()->takeAt(0))
+			RemoveLayoutItem(item2);
+	}
+	delete item;
+}
+
+void RemoveWidget(QWidget *widget)
+{
+	if (!widget)
+		return;
+	if (widget->layout()) {
+		while (QLayoutItem *item = widget->layout()->takeAt(0)) {
+			RemoveLayoutItem(item);
+		}
+		delete widget->layout();
+	}
+	delete widget;
+}
+
 MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 {
 	auto l = new QVBoxLayout;
@@ -241,16 +268,8 @@ void MultistreamDock::LoadSettings()
 			obs_data_release(item);
 		}
 		if (!found) {
-			if (streamGroup->layout()) {
-				while (QLayoutItem *item = streamGroup->layout()->takeAt(0)) {
-					delete item->widget();
-					delete item->layout();
-					delete item;
-				}
-				delete streamGroup->layout();
-			}
 			mainCanvasLayout->removeWidget(streamGroup);
-			delete streamGroup;
+			RemoveWidget(streamGroup);
 		} else {
 			idx++;
 		}

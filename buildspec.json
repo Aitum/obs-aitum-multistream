@@ -33,7 +33,7 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "tv.aitum.aitum-multistream"
+            "bundleId": "tv.aitum.multi"
         }
     },
     "name": "aitum-multistream",

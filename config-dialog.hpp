@@ -1,7 +1,5 @@
 #pragma once
 
-#include "multistream.hpp"
-
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -37,14 +35,13 @@ private:
 	QIcon GetAdvancedIcon() const;
 
 	void AddServer(QFormLayout *outputsLayout, obs_data_t *settings);
-	void AddProperty(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings, QFormLayout *layout,
-			 std::map<obs_property_t *, QWidget *> *widgets);
-	void RefreshProperties(obs_properties_t *properties, std::map<obs_property_t *, QWidget *> *widgets, QFormLayout *layout);
+	void AddProperty(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings, QFormLayout *layout);
+	void RefreshProperties(obs_properties_t *properties, QFormLayout *layout);
 
 	obs_data_t *settings;
 
 	std::map<obs_property_t *, QWidget *> encoder_property_widgets;
-	std::map<QWidget *, obs_properties_t *> video_encoder_properties;
+	std::map<QWidget *, obs_properties_t *> encoder_properties;
 
 	QFormLayout *mainOutputsLayout;
 	QFormLayout *verticalOutputsLayout;
@@ -63,6 +60,6 @@ public:
 	OBSBasicSettings(QMainWindow *parent = nullptr);
 	~OBSBasicSettings();
 
-	void LoadSettings(obs_data_t* settings);
+	void LoadSettings(obs_data_t *settings);
 public slots:
 };

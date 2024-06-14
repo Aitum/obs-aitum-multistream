@@ -207,7 +207,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 OBSBasicSettings::~OBSBasicSettings()
 {
-	for (auto it = video_encoder_properties.begin(); it != video_encoder_properties.end(); it++)
+	for (auto it = encoder_properties.begin(); it != encoder_properties.end(); it++)
 		obs_properties_destroy(it->second);
 }
 
@@ -298,8 +298,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto serverGroup = new QGroupBox;
 	serverGroup->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	serverGroup->setProperty("altColor", QVariant(true));
-	serverGroup->setStyleSheet(QString("QGroupBox[altColor=\"true\"]{background-color: %1; padding-top: 4px;}")
-					   .arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
+	serverGroup->setProperty("customTitle", QVariant(true));
+	serverGroup->setStyleSheet(
+		QString("QGroupBox[altColor=\"true\"]{background-color: %1;} QGroupBox[customTitle=\"true\"]{padding-top: 4px;}")
+			.arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
 
 	auto serverLayout = new QFormLayout;
 	serverLayout->setContentsMargins(9, 2, 9, 9);
@@ -375,10 +377,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			} else {
 				advancedGroupLayout->setRowVisible(videoEncoderIndex, false);
 				videoEncoderGroup->setVisible(true);
-				auto t = video_encoder_properties.find(serverGroup);
-				if (t != video_encoder_properties.end()) {
+				auto t = encoder_properties.find(serverGroup);
+				if (t != encoder_properties.end()) {
 					obs_properties_destroy(t->second);
-					video_encoder_properties.erase(t);
+					encoder_properties.erase(t);
 				}
 				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= 0; i--) {
 					videoEncoderGroupLayout->removeRow(i);
@@ -390,12 +392,11 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_data_set_obj(settings, "video_encoder_settings", ves);
 				}
 				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
-				video_encoder_properties[serverGroup] = stream_encoder_properties;
+				encoder_properties[serverGroup] = stream_encoder_properties;
 
 				obs_property_t *property = obs_properties_first(stream_encoder_properties);
 				while (property) {
-					AddProperty(stream_encoder_properties, property, ves, videoEncoderGroupLayout,
-						    &encoder_property_widgets);
+					AddProperty(stream_encoder_properties, property, ves, videoEncoderGroupLayout);
 					obs_property_next(&property);
 				}
 				obs_data_release(ves);
@@ -420,6 +421,100 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			videoEncoder->setCurrentIndex(videoEncoder->count() - 1);
 	}
 	videoEncoderGroup->setVisible(advanced && videoEncoder->currentIndex() > 0);
+
+	auto audioEncoder = new QComboBox;
+	audioEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
+	audioEncoder->setCurrentIndex(0);
+	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoder")), audioEncoder);
+
+	//"audio_track"
+
+	auto audioTrack = new QComboBox;
+	for (int i = 0; i < 6; i++) {
+		audioTrack->addItem(QString::number(i + 1));
+	}
+	audioTrack->setCurrentIndex(obs_data_get_int(settings, "audio_track"));
+	connect(audioTrack, &QComboBox::currentIndexChanged, [audioTrack, settings] {
+		if (audioTrack->currentIndex() >= 0)
+			obs_data_set_int(settings, "audio_track", audioTrack->currentIndex());
+	});
+	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioTrack")), audioTrack);
+
+	auto audioEncoderIndex = new QComboBox;
+	for (int i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++) {
+		audioEncoderIndex->addItem(QString::number(i + 1));
+	}
+	audioEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "audio_encoder_index"));
+	connect(audioEncoderIndex, &QComboBox::currentIndexChanged, [audioEncoderIndex, settings] {
+		if (audioEncoderIndex->currentIndex() >= 0)
+			obs_data_set_int(settings, "audio_encoder_index", audioEncoderIndex->currentIndex());
+	});
+	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoderIndex")), audioEncoderIndex);
+
+	auto audioEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("AudioEncoder")));
+	audioEncoderGroup->setProperty("altColor", QVariant(true));
+	auto audioEncoderGroupLayout = new QFormLayout();
+	audioEncoderGroup->setLayout(audioEncoderGroupLayout);
+	advancedGroupLayout->addRow(audioEncoderGroup);
+
+	connect(audioEncoder, &QComboBox::currentIndexChanged,
+		[this, serverGroup, advancedGroupLayout, audioEncoder, audioEncoderIndex, audioEncoderGroup,
+		 audioEncoderGroupLayout, audioTrack, settings] {
+			auto encoder_string = audioEncoder->currentData().toString().toUtf8();
+			auto encoder = encoder_string.constData();
+			obs_data_set_string(settings, "audio_encoder", encoder);
+			if (!encoder || encoder[0] == '\0') {
+				advancedGroupLayout->setRowVisible(audioEncoderIndex, true);
+				advancedGroupLayout->setRowVisible(audioTrack, false);
+				audioEncoderGroup->setVisible(false);
+			} else {
+				advancedGroupLayout->setRowVisible(audioEncoderIndex, false);
+				advancedGroupLayout->setRowVisible(audioTrack, true);
+				audioEncoderGroup->setVisible(true);
+				auto t = encoder_properties.find(serverGroup);
+				if (t != encoder_properties.end()) {
+					obs_properties_destroy(t->second);
+					encoder_properties.erase(t);
+				}
+				for (int i = audioEncoderGroupLayout->rowCount() - 1; i >= 0; i--) {
+					audioEncoderGroupLayout->removeRow(i);
+				}
+				//auto stream_encoder_settings = obs_encoder_defaults(encoder);
+				auto aes = obs_data_get_obj(settings, "audio_encoder_settings");
+				if (!aes) {
+					aes = obs_encoder_defaults(encoder);
+					obs_data_set_obj(settings, "audio_encoder_settings", aes);
+				}
+				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
+				encoder_properties[serverGroup] = stream_encoder_properties;
+
+				obs_property_t *property = obs_properties_first(stream_encoder_properties);
+				while (property) {
+					AddProperty(stream_encoder_properties, property, aes, audioEncoderGroupLayout);
+					obs_property_next(&property);
+				}
+				obs_data_release(aes);
+				//obs_properties_destroy(stream_encoder_properties);
+			}
+		});
+
+	current_type = obs_data_get_string(settings, "audio_encoder");
+	idx = 0;
+	while (obs_enum_encoder_types(idx++, &type)) {
+		if (obs_get_encoder_type(type) != OBS_ENCODER_AUDIO)
+			continue;
+		uint32_t caps = obs_get_encoder_caps(type);
+		if ((caps & (OBS_ENCODER_CAP_DEPRECATED | OBS_ENCODER_CAP_INTERNAL)) != 0)
+			continue;
+		const char *codec = obs_get_encoder_codec(type);
+		if (astrcmpi(codec, "aac") != 0 && astrcmpi(codec, "opus") != 0)
+			continue;
+		audioEncoder->addItem(QString::fromUtf8(obs_encoder_get_display_name(type)), QVariant(QString::fromUtf8(type)));
+		if (strcmp(type, current_type) == 0)
+			audioEncoder->setCurrentIndex(audioEncoder->count() - 1);
+	}
+	audioEncoderGroup->setVisible(audioEncoder->currentIndex() > 0);
+	advancedGroupLayout->setRowVisible(audioTrack, audioEncoder->currentIndex() > 0);
 
 	auto advancedButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("Advanced")));
 	advancedButton->setProperty("themeID", "configIconSmall");
@@ -516,7 +611,7 @@ void OBSBasicSettings::LoadSettings(obs_data_t *settings)
 }
 
 void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings,
-				   QFormLayout *layout, std::map<obs_property_t *, QWidget *> *widgets)
+				   QFormLayout *layout)
 {
 	obs_property_type type = obs_property_get_type(property);
 	if (type == OBS_PROPERTY_BOOL) {
@@ -534,11 +629,11 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 					w->setVisible(false);
 			}
 		}
-		widgets->emplace(property, widget);
-		connect(widget, &QCheckBox::stateChanged, [this, properties, property, settings, widget, widgets, layout] {
+		encoder_property_widgets.emplace(property, widget);
+		connect(widget, &QCheckBox::stateChanged, [this, properties, property, settings, widget, layout] {
 			obs_data_set_bool(settings, obs_property_name(property), widget->isChecked());
 			if (obs_property_modified(property, settings)) {
-				RefreshProperties(properties, widgets, layout);
+				RefreshProperties(properties, layout);
 			}
 		});
 	} else if (type == OBS_PROPERTY_INT) {
@@ -556,11 +651,11 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 			widget->setVisible(false);
 			label->setVisible(false);
 		}
-		widgets->emplace(property, widget);
-		connect(widget, &QSpinBox::valueChanged, [this, properties, property, settings, widget, widgets, layout] {
+		encoder_property_widgets.emplace(property, widget);
+		connect(widget, &QSpinBox::valueChanged, [this, properties, property, settings, widget, layout] {
 			obs_data_set_int(settings, obs_property_name(property), widget->value());
 			if (obs_property_modified(property, settings)) {
-				RefreshProperties(properties, widgets, layout);
+				RefreshProperties(properties, layout);
 			}
 		});
 	} else if (type == OBS_PROPERTY_FLOAT) {
@@ -578,11 +673,11 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 			widget->setVisible(false);
 			label->setVisible(false);
 		}
-		widgets->emplace(property, widget);
-		connect(widget, &QDoubleSpinBox::valueChanged, [this, properties, property, settings, widget, widgets, layout] {
+		encoder_property_widgets.emplace(property, widget);
+		connect(widget, &QDoubleSpinBox::valueChanged, [this, properties, property, settings, widget, layout] {
 			obs_data_set_double(settings, obs_property_name(property), widget->value());
 			if (obs_property_modified(property, settings)) {
-				RefreshProperties(properties, widgets, layout);
+				RefreshProperties(properties, layout);
 			}
 		});
 	} else if (type == OBS_PROPERTY_TEXT) {
@@ -598,14 +693,13 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 				widget->setVisible(false);
 				label->setVisible(false);
 			}
-			widgets->emplace(property, widget);
-			connect(widget, &QPlainTextEdit::textChanged,
-				[this, properties, property, settings, widget, widgets, layout] {
-					obs_data_set_string(settings, obs_property_name(property), widget->toPlainText().toUtf8());
-					if (obs_property_modified(property, settings)) {
-						RefreshProperties(properties, widgets, layout);
-					}
-				});
+			encoder_property_widgets.emplace(property, widget);
+			connect(widget, &QPlainTextEdit::textChanged, [this, properties, property, settings, widget, layout] {
+				obs_data_set_string(settings, obs_property_name(property), widget->toPlainText().toUtf8());
+				if (obs_property_modified(property, settings)) {
+					RefreshProperties(properties, layout);
+				}
+			});
 		} else {
 			auto widget = new QLineEdit();
 			widget->setText(QString::fromUtf8(obs_data_get_string(settings, obs_property_name(property))));
@@ -617,15 +711,14 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 				widget->setVisible(false);
 				label->setVisible(false);
 			}
-			widgets->emplace(property, widget);
+			encoder_property_widgets.emplace(property, widget);
 			if (text_type != OBS_TEXT_INFO) {
-				connect(widget, &QLineEdit::textChanged,
-					[this, properties, property, settings, widget, widgets, layout] {
-						obs_data_set_string(settings, obs_property_name(property), widget->text().toUtf8());
-						if (obs_property_modified(property, settings)) {
-							RefreshProperties(properties, widgets, layout);
-						}
-					});
+				connect(widget, &QLineEdit::textChanged, [this, properties, property, settings, widget, layout] {
+					obs_data_set_string(settings, obs_property_name(property), widget->text().toUtf8());
+					if (obs_property_modified(property, settings)) {
+						RefreshProperties(properties, layout);
+					}
+				});
 			}
 		}
 	} else if (type == OBS_PROPERTY_LIST) {
@@ -708,44 +801,41 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 			widget->setVisible(false);
 			label->setVisible(false);
 		}
-		widgets->emplace(property, widget);
+		encoder_property_widgets.emplace(property, widget);
 		switch (format) {
 		case OBS_COMBO_FORMAT_INT:
-			connect(widget, &QComboBox::currentIndexChanged,
-				[this, properties, property, settings, widget, widgets, layout] {
-					obs_data_set_int(settings, obs_property_name(property), widget->currentData().toInt());
-					if (obs_property_modified(property, settings)) {
-						RefreshProperties(properties, widgets, layout);
-					}
-				});
+			connect(widget, &QComboBox::currentIndexChanged, [this, properties, property, settings, widget, layout] {
+				obs_data_set_int(settings, obs_property_name(property), widget->currentData().toInt());
+				if (obs_property_modified(property, settings)) {
+					RefreshProperties(properties, layout);
+				}
+			});
 			break;
 		case OBS_COMBO_FORMAT_FLOAT:
-			connect(widget, &QComboBox::currentIndexChanged,
-				[this, properties, property, settings, widget, widgets, layout] {
-					obs_data_set_double(settings, obs_property_name(property),
-							    widget->currentData().toDouble());
-					if (obs_property_modified(property, settings)) {
-						RefreshProperties(properties, widgets, layout);
-					}
-				});
+			connect(widget, &QComboBox::currentIndexChanged, [this, properties, property, settings, widget, layout] {
+				obs_data_set_double(settings, obs_property_name(property), widget->currentData().toDouble());
+				if (obs_property_modified(property, settings)) {
+					RefreshProperties(properties, layout);
+				}
+			});
 			break;
 		case OBS_COMBO_FORMAT_STRING:
 			if (list_type == OBS_COMBO_TYPE_EDITABLE) {
 				connect(widget, &QComboBox::currentTextChanged,
-					[this, properties, property, settings, widget, widgets, layout] {
+					[this, properties, property, settings, widget, layout] {
 						obs_data_set_string(settings, obs_property_name(property),
 								    widget->currentText().toUtf8().constData());
 						if (obs_property_modified(property, settings)) {
-							RefreshProperties(properties, widgets, layout);
+							RefreshProperties(properties, layout);
 						}
 					});
 			} else {
 				connect(widget, &QComboBox::currentIndexChanged,
-					[this, properties, property, settings, widget, widgets, layout] {
+					[this, properties, property, settings, widget, layout] {
 						obs_data_set_string(settings, obs_property_name(property),
 								    widget->currentData().toString().toUtf8().constData());
 						if (obs_property_modified(property, settings)) {
-							RefreshProperties(properties, widgets, layout);
+							RefreshProperties(properties, layout);
 						}
 					});
 			}
@@ -765,13 +855,12 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 	obs_property_modified(property, settings);
 }
 
-void OBSBasicSettings::RefreshProperties(obs_properties_t *properties, std::map<obs_property_t *, QWidget *> *widgets,
-					 QFormLayout *layout)
+void OBSBasicSettings::RefreshProperties(obs_properties_t *properties, QFormLayout *layout)
 {
 
 	obs_property_t *property = obs_properties_first(properties);
 	while (property) {
-		auto widget = widgets->at(property);
+		auto widget = encoder_property_widgets.at(property);
 		auto visible = obs_property_visible(property);
 		if (widget->isVisible() != visible) {
 			widget->setVisible(visible);

@@ -64,8 +64,11 @@ runs:
         if (( ${+RUNNER_DEBUG} )) package_args+=(--debug)
 
         if [[ '${{ inputs.codesign }}' == 'true' ]] package_args+=(--codesign)
+        if [[ '${{ inputs.codesign }}' == 'true' ]] echo "Will codesign"
         if [[ '${{ inputs.notarize }}' == 'true' ]] package_args+=(--notarize)
+        if [[ '${{ inputs.notarize }}' == 'true' ]] echo "Will notarize"
         if [[ '${{ inputs.package }}' == 'true' ]] package_args+=(--package)
+        if [[ '${{ inputs.package }}' == 'true' ]] echo "Will package"
 
         .github/scripts/package-macos ${package_args}
 

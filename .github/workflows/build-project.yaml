@@ -121,7 +121,7 @@ jobs:
         if: fromJSON(needs.check-event.outputs.codesign)
         id: codesign
         with:
-          codesignIdentity: ${{ secrets.APPLE_APPID_MULTI }}
+          codesignIdentity: ${{ secrets.APPLE_INSTALLERID_MULTI }}
           installerIdentity: ${{ secrets.APPLE_INSTALLERID_MULTI }}
           codesignCertificate: ${{ secrets.APPLE_CSC_LINK }}
           certificatePassword: ${{ secrets.APPLE_CSC_PASSWORD }}

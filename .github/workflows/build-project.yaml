@@ -122,9 +122,9 @@ jobs:
         id: codesign
         with:
           codesignIdentity: ${{ secrets.APPLE_INSTALLERID_MULTI }}
-          # installerIdentity: ${{ secrets.APPLE_INSTALLERID_MULTI }}
-          codesignCertificate: ${{ secrets.APPLE_CSC_LINK }}
-          certificatePassword: ${{ secrets.APPLE_CSC_PASSWORD }}
+          installerIdentity: ${{ secrets.APPLE_INSTALLERID_MULTI }}
+          codesignCertificate: ${{ secrets.APPLE_CSC_MULTI }}
+          certificatePassword: ${{ secrets.APPLE_CSC_MULTI_PASSWORD }}
           # keychainPassword: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
           # provisioningProfile: ${{ secrets.MACOS_SIGNING_PROVISIONING_PROFILE }}
           notarizationUser: ${{ secrets.APPLE_EMAIL }}

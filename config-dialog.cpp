@@ -25,6 +25,7 @@
 #include <util/dstr.h>
 
 #include <sstream>
+#include <util/platform.h>
 
 template<typename T> std::string to_string_with_precision(const T a_value, const int n = 6)
 {
@@ -902,9 +903,15 @@ void OBSBasicSettings::LoadOutputStats()
 				if (!venc)
 					continue;
 				ec++;
-				//video_t *video = obs_encoder_parent_video(venc);
-				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
-												       venc, output));
+				video_t *video = obs_output_video(output);
+				void *dl = os_dlopen("obs");
+				if (dl) {
+					auto sym = (video_t * (*)(const obs_encoder_t *encoder))
+						os_dlsym(dl, "obs_encoder_parent_video");
+					if (sym)
+						video = sym(venc);
+				}
+				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
 			}
 			if (!ec) {
 				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),

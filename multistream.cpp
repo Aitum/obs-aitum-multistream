@@ -439,7 +439,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_data_apply(s, ves);
 				obs_data_release(ves);
 			}
-			venc = obs_video_encoder_create(venc_name, name, s, nullptr);
+			std::string video_encoder_name = "aitum_multi_video_encoder_";
+			video_encoder_name += name;
+			venc = obs_video_encoder_create(venc_name, video_encoder_name.c_str(), s, nullptr);
 			obs_data_release(s);
 			obs_encoder_set_video(venc, obs_get_video());
 			auto divisor = obs_data_get_int(settings, "frame_rate_divisor");
@@ -473,7 +475,11 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_data_apply(s, aes);
 				obs_data_release(aes);
 			}
-			aenc = obs_audio_encoder_create(venc_name, name, s, obs_data_get_int(settings, "audio_track"), nullptr);
+			std::string audio_encoder_name = "aitum_multi_audio_encoder_";
+			audio_encoder_name += name;
+			aenc = obs_audio_encoder_create(venc_name, audio_encoder_name.c_str(), s,
+							obs_data_get_int(settings, "audio_track"),
+							nullptr);
 			obs_data_release(s);
 			obs_encoder_set_audio(aenc, obs_get_audio());
 		}
@@ -500,7 +506,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	//use_auth
 	//username
 	//password
-	auto service = obs_service_create("rtmp_custom", name, s, nullptr);
+	std::string service_name = "aitum_multi_service_";
+	service_name += name;
+	auto service = obs_service_create("rtmp_custom", service_name.c_str(), s, nullptr);
 	obs_data_release(s);
 
 	const char *type = obs_service_get_preferred_output_type(service);
@@ -513,7 +521,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			type = "ffmpeg_mpegts_muxer";
 		}
 	}
-	auto output = obs_output_create(type, name, nullptr, nullptr);
+	std::string output_name = "aitum_multi_output_";
+	output_name += name;
+	auto output = obs_output_create(type, output_name.c_str(), nullptr, nullptr);
 	obs_output_set_service(output, service);
 
 	config_t *config = obs_frontend_get_profile_config();

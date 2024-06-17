@@ -902,8 +902,9 @@ void OBSBasicSettings::LoadOutputStats()
 				if (!venc)
 					continue;
 				ec++;
-				video_t *video = obs_encoder_parent_video(venc);
-				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
+				//video_t *video = obs_encoder_parent_video(venc);
+				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
+												       venc, output));
 			}
 			if (!ec) {
 				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
@@ -938,7 +939,7 @@ void OBSBasicSettings::LoadOutputStats()
 	auto ph = obs_get_proc_handler();
 	struct calldata cd;
 	calldata_init(&cd);
-	if(proc_handler_call(ph, "aitum_vertical_get_video", &cd))
+	if (proc_handler_call(ph, "aitum_vertical_get_video", &cd))
 		vertical_video = (video_t *)calldata_ptr(&cd, "video");
 	calldata_free(&cd);
 	for (auto it = refs.begin(); it != refs.end(); it++) {

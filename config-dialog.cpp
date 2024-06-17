@@ -24,6 +24,16 @@
 #include "version.h"
 #include <util/dstr.h>
 
+#include <sstream>
+
+template<typename T> std::string to_string_with_precision(const T a_value, const int n = 6)
+{
+	std::ostringstream out;
+	out.precision(n);
+	out << std::fixed << a_value;
+	return std::move(out).str();
+}
+
 void RemoveWidget(QWidget *widget);
 void RemoveLayoutItem(QLayoutItem *item);
 
@@ -100,9 +110,11 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);*/
 
-	auto troubleshooterPage = new QWidget;
+	troubleshooterText = new QTextEdit;
+	troubleshooterText->setReadOnly(true);
+
 	scrollArea = new QScrollArea;
-	scrollArea->setWidget(troubleshooterPage);
+	scrollArea->setWidget(troubleshooterText);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
@@ -875,4 +887,146 @@ void OBSBasicSettings::RefreshProperties(obs_properties_t *properties, QFormLayo
 		}
 		obs_property_next(&property);
 	}
+}
+
+void OBSBasicSettings::LoadOutputStats()
+{
+
+	std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> refs;
+	obs_enum_outputs(
+		[](void *data, obs_output_t *output) {
+			auto refs = (std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> *)data;
+			auto ec = 0;
+			for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+				auto venc = obs_output_get_video_encoder2(output, i);
+				if (!venc)
+					continue;
+				ec++;
+				video_t *video = obs_encoder_parent_video(venc);
+				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
+			}
+			if (!ec) {
+				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
+												       nullptr, output));
+			}
+			return true;
+		},
+		&refs);
+	std::sort(refs.begin(), refs.end(),
+		  [](std::tuple<video_t *, obs_encoder_t *, obs_output_t *> const &a,
+		     std::tuple<video_t *, obs_encoder_t *, obs_output_t *> const &b) {
+			  video_t *va;
+			  video_t *vb;
+			  obs_encoder_t *ea;
+			  obs_encoder_t *eb;
+			  obs_output_t *oa;
+			  obs_output_t *ob;
+			  std::tie(va, ea, oa) = a;
+			  std::tie(vb, eb, ob) = b;
+			  if (va == vb) {
+				  if (ea == eb) {
+					  return oa < ob;
+				  }
+				  return va < vb;
+			  }
+			  return va < vb;
+		  });
+	std::string stats;
+	video_t *last_video = nullptr;
+	auto video_count = 0;
+	video_t *vertical_video = nullptr;
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	if(proc_handler_call(ph, "aitum_vertical_get_video", &cd))
+		vertical_video = (video_t *)calldata_ptr(&cd, "video");
+	calldata_free(&cd);
+	for (auto it = refs.begin(); it != refs.end(); it++) {
+		video_t *video;
+		obs_encoder_t *encoder;
+		obs_output_t *output;
+		std::tie(video, encoder, output) = *it;
+
+		if (!video) {
+			stats += "No Canvas ";
+		} else if (vertical_video && vertical_video == video) {
+			stats += "Vertical Canvas ";
+		} else if (video == obs_get_video()) {
+			stats += "Main Canvas ";
+		} else {
+			if (last_video != video) {
+				video_count++;
+				last_video = video;
+			}
+			stats += "Custom Canvas ";
+			stats += std::to_string(video_count);
+			stats += " ";
+		}
+		if (encoder) {
+			stats += "(";
+			stats += std::to_string(obs_encoder_get_width(encoder));
+			stats += "x";
+			stats += std::to_string(obs_encoder_get_height(encoder));
+			stats += ") ";
+			stats += obs_encoder_get_name(encoder);
+			stats += "(";
+			stats += obs_encoder_get_id(encoder);
+			stats += ") ";
+			stats += to_string_with_precision(
+				video_output_get_frame_rate(video) / obs_encoder_get_frame_rate_divisor(encoder), 2);
+			stats += "fps ";
+			stats += obs_encoder_active(encoder) ? "Active " : "Inactive ";
+		} else if (video) {
+			stats += "(";
+			stats += std::to_string(video_output_get_width(video));
+			stats += "x";
+			stats += std::to_string(video_output_get_height(video));
+			stats += ") ";
+			stats += to_string_with_precision(video_output_get_frame_rate(video), 2);
+			stats += "fps ";
+			stats += video_output_active(video) ? "Active " : "Inactive ";
+		} else {
+			stats += "(";
+			stats += std::to_string(obs_output_get_width(output));
+			stats += "x";
+			stats += std::to_string(obs_output_get_height(output));
+			stats += ") ";
+			stats += obs_output_active(output) ? "Active " : "Inactive ";
+		}
+		if (video) {
+			stats += "skipped frames ";
+			stats += std::to_string(video_output_get_skipped_frames(video));
+			stats += "/";
+			stats += std::to_string(video_output_get_total_frames(video));
+			stats += " ";
+		}
+		stats += obs_output_get_name(output);
+		stats += "(";
+		stats += obs_output_get_id(output);
+		stats += ")";
+		//stats += obs_output_get_display_name(obs_output_get_id(output));
+		stats += " ";
+		stats += std::to_string(obs_output_get_connect_time_ms(output));
+		stats += "ms ";
+		//obs_output_get_total_bytes(output);
+		stats += "dropped frames ";
+		stats += std::to_string(obs_output_get_frames_dropped(output));
+		stats += "/";
+		stats += std::to_string(obs_output_get_total_frames(output));
+		obs_service_t *service = obs_output_get_service(output);
+		if (service) {
+			stats += " ";
+			stats += obs_service_get_name(service);
+			stats += "(";
+			stats += obs_service_get_id(service);
+			stats += ")";
+			auto url = obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL);
+			if (url) {
+				stats += " ";
+				stats += url;
+			}
+		}
+		stats += "\n";
+	}
+	troubleshooterText->setText(QString::fromUtf8(stats));
 }

@@ -46,6 +46,8 @@ private:
 	QFormLayout *mainOutputsLayout;
 	QFormLayout *verticalOutputsLayout;
 
+	QTextEdit *troubleshooterText;
+
 private slots:
 	void SetGeneralIcon(const QIcon &icon);
 	void SetStreamIcon(const QIcon &icon);
@@ -61,5 +63,6 @@ public:
 	~OBSBasicSettings();
 
 	void LoadSettings(obs_data_t *settings);
+	void LoadOutputStats();
 public slots:
 };

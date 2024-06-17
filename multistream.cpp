@@ -148,6 +148,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		if (current_config)
 			obs_data_apply(settings, current_config);
 		configDialog->LoadSettings(settings);
+		configDialog->LoadOutputStats();
 		configDialog->setResult(QDialog::Rejected);
 		if (configDialog->exec() == QDialog::Accepted) {
 			if (current_config) {

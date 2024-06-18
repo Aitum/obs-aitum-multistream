@@ -191,6 +191,12 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	version->setOpenExternalLinks(true);
 	version->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
+	newVersion = new QLabel;
+	newVersion->setProperty("themeID", "warning");
+	newVersion->setVisible(false);
+	newVersion->setOpenExternalLinks(true);
+	newVersion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+
 	QPushButton *okButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("OK")));
 	connect(okButton, &QPushButton::clicked, [this] { accept(); });
 
@@ -199,7 +205,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	QHBoxLayout *bottomLayout = new QHBoxLayout;
 	bottomLayout->addWidget(version, 1, Qt::AlignLeft);
-	//bottomLayout->addWidget(newVersion, 1, Qt::AlignLeft);
+	bottomLayout->addWidget(newVersion, 1, Qt::AlignLeft);
 	bottomLayout->addWidget(okButton, 0, Qt::AlignRight);
 	bottomLayout->addWidget(cancelButton, 0, Qt::AlignRight);
 
@@ -889,10 +895,21 @@ void OBSBasicSettings::RefreshProperties(obs_properties_t *properties, QFormLayo
 		obs_property_next(&property);
 	}
 }
+static bool obs_encoder_parent_video_loaded = false;
+static video_t *(*obs_encoder_parent_video_wrapper)(const obs_encoder_t *encoder) = nullptr;
 
 void OBSBasicSettings::LoadOutputStats()
 {
-
+	if (!obs_encoder_parent_video_loaded) {
+		void *dl = os_dlopen("obs");
+		if (dl) {
+			auto sym = os_dlsym(dl, "obs_encoder_parent_video");
+			if (sym)
+				obs_encoder_parent_video_wrapper = (video_t * (*)(const obs_encoder_t *encoder)) sym;
+			os_dlclose(dl);
+		}
+		obs_encoder_parent_video_loaded = true;
+	}
 	std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> refs;
 	obs_enum_outputs(
 		[](void *data, obs_output_t *output) {
@@ -903,14 +920,10 @@ void OBSBasicSettings::LoadOutputStats()
 				if (!venc)
 					continue;
 				ec++;
-				video_t *video = obs_output_video(output);
-				void *dl = os_dlopen("obs");
-				if (dl) {
-					auto sym = (video_t * (*)(const obs_encoder_t *encoder))
-						os_dlsym(dl, "obs_encoder_parent_video");
-					if (sym)
-						video = sym(venc);
-				}
+				video_t *video = obs_encoder_parent_video_wrapper ? obs_encoder_parent_video_wrapper(venc)
+										  : obs_encoder_video(venc);
+				if (!video)
+					video = obs_output_video(output);
 				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
 			}
 			if (!ec) {
@@ -1011,9 +1024,7 @@ void OBSBasicSettings::LoadOutputStats()
 		stats += obs_output_get_name(output);
 		stats += "(";
 		stats += obs_output_get_id(output);
-		stats += ")";
-		//stats += obs_output_get_display_name(obs_output_get_id(output));
-		stats += " ";
+		stats += ") ";
 		stats += std::to_string(obs_output_get_connect_time_ms(output));
 		stats += "ms ";
 		//obs_output_get_total_bytes(output);
@@ -1037,4 +1048,12 @@ void OBSBasicSettings::LoadOutputStats()
 		stats += "\n";
 	}
 	troubleshooterText->setText(QString::fromUtf8(stats));
+}
+
+void OBSBasicSettings::SetNewerVersion(QString newer_version_available)
+{
+	if (newer_version_available.isEmpty())
+		return;
+	newVersion->setText(QString::fromUtf8(obs_module_text("NewVersion")).arg(newer_version_available));
+	newVersion->setVisible(true);
 }

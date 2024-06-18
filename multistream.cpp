@@ -12,12 +12,44 @@
 #include <QVBoxLayout>
 #include <util/config-file.h>
 #include <util/platform.h>
+extern "C" {
+#include "file-updater.h"
+}
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("Aitum");
 OBS_MODULE_USE_DEFAULT_LOCALE("aitum-multistream", "en-US")
 
-static MultistreamDock *multistream_dock;
+static MultistreamDock *multistream_dock = nullptr;
+
+update_info_t *version_update_info = nullptr;
+
+bool version_info_downloaded(void *param, struct file_download_data *file)
+{
+	UNUSED_PARAMETER(param);
+	if (!file || !file->buffer.num)
+		return true;
+	auto d = obs_data_create_from_json((const char *)file->buffer.array);
+	if (!d)
+		return true;
+	auto data = obs_data_get_obj(d, "data");
+	obs_data_release(d);
+	if (!data)
+		return true;
+	auto version = QString::fromUtf8(obs_data_get_string(data, "version"));
+	QStringList pieces = version.split(".");
+	if (pieces.count() > 2) {
+		auto major = pieces[0].toInt();
+		auto minor = pieces[1].toInt();
+		auto patch = pieces[2].toInt();
+		auto sv = MAKE_SEMANTIC_VERSION(major, minor, patch);
+		if (sv > MAKE_SEMANTIC_VERSION(PROJECT_VERSION_MAJOR, PROJECT_VERSION_MINOR, PROJECT_VERSION_PATCH)) {
+			QMetaObject::invokeMethod(multistream_dock, "NewerVersionAvailable", Q_ARG(QString, version));
+		}
+	}
+	obs_data_release(data);
+	return true;
+}
 
 bool obs_module_load(void)
 {
@@ -28,11 +60,14 @@ bool obs_module_load(void)
 	multistream_dock = new MultistreamDock(main_window);
 	obs_frontend_add_dock_by_id("AitumMultistreamDock", obs_module_text("AitumMultistream"), multistream_dock);
 
+	version_update_info = update_info_create_single("[Aitum Multistream]", "OBS", "https://api.aitum.tv/multi",
+							version_info_downloaded, nullptr);
 	return true;
 }
 
 void obs_module_unload()
 {
+	update_info_destroy(version_update_info);
 	if (multistream_dock) {
 		delete multistream_dock;
 	}
@@ -133,7 +168,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	auto buttonRow = new QHBoxLayout;
 	buttonRow->setContentsMargins(0, 0, 0, 0);
-	auto configButton = new QPushButton;
+	configButton = new QPushButton;
 	configButton->setMinimumHeight(30);
 	configButton->setProperty("themeID", "configIconSmall");
 	configButton->setFlat(true);
@@ -149,6 +184,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_data_apply(settings, current_config);
 		configDialog->LoadSettings(settings);
 		configDialog->LoadOutputStats();
+		configDialog->SetNewerVersion(newer_version_available);
 		configDialog->setResult(QDialog::Rejected);
 		if (configDialog->exec() == QDialog::Accepted) {
 			if (current_config) {
@@ -479,8 +515,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			std::string audio_encoder_name = "aitum_multi_audio_encoder_";
 			audio_encoder_name += name;
 			aenc = obs_audio_encoder_create(venc_name, audio_encoder_name.c_str(), s,
-							obs_data_get_int(settings, "audio_track"),
-							nullptr);
+							obs_data_get_int(settings, "audio_track"), nullptr);
 			obs_data_release(s);
 			obs_encoder_set_audio(aenc, obs_get_audio());
 		}
@@ -500,25 +535,29 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	if (!aenc || !venc) {
 		return false;
 	}
-
+	auto server = obs_data_get_string(settings, "server");
+	bool whip = strstr(server, "whip") != nullptr;
 	auto s = obs_data_create();
-	obs_data_set_string(s, "server", obs_data_get_string(settings, "server"));
-	obs_data_set_string(s, "key", obs_data_get_string(settings, "key"));
+	obs_data_set_string(s, "server", server);
+	if (whip) {
+		obs_data_set_string(s, "bearer_token", obs_data_get_string(settings, "key"));
+	} else {
+		obs_data_set_string(s, "key", obs_data_get_string(settings, "key"));
+	}
 	//use_auth
 	//username
 	//password
 	std::string service_name = "aitum_multi_service_";
 	service_name += name;
-	auto service = obs_service_create("rtmp_custom", service_name.c_str(), s, nullptr);
+	auto service = obs_service_create(whip ? "whip_custom" : "rtmp_custom", service_name.c_str(), s, nullptr);
 	obs_data_release(s);
 
 	const char *type = obs_service_get_preferred_output_type(service);
 	if (!type) {
-		const char *url = obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL);
 		type = "rtmp_output";
-		if (url != NULL && strncmp(url, "ftl", 3) == 0) {
+		if (strncmp(server, "ftl", 3) == 0) {
 			type = "ftl_output";
-		} else if (url != NULL && strncmp(url, "rtmp", 4) != 0) {
+		} else if (strncmp(server, "rtmp", 4) != 0) {
 			type = "ffmpeg_mpegts_muxer";
 		}
 	}
@@ -575,4 +614,10 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 	auto streamButton = (QPushButton *)data;
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
 	streamButton->setChecked(false);
+}
+
+void MultistreamDock::NewerVersionAvailable(QString version)
+{
+	newer_version_available = version;
+	configButton->setStyleSheet(QString::fromUtf8("background: rgb(192,128,0);"));
 }

@@ -11,6 +11,7 @@
 #include <QSpinBox>
 #include <QFormLayout>
 #include <QRadioButton>
+#include <QLabel>
 
 class OBSBasicSettings : public QDialog {
 	Q_OBJECT
@@ -45,6 +46,7 @@ private:
 
 	QFormLayout *mainOutputsLayout;
 	QFormLayout *verticalOutputsLayout;
+	QLabel *newVersion;
 
 	QTextEdit *troubleshooterText;
 
@@ -64,5 +66,6 @@ public:
 
 	void LoadSettings(obs_data_t *settings);
 	void LoadOutputStats();
+	void SetNewerVersion(QString newer_version_available);
 public slots:
 };

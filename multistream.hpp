@@ -19,6 +19,9 @@ private:
 
 	QVBoxLayout *mainCanvasLayout = nullptr;
 	QPushButton *mainStreamButton = nullptr;
+	QPushButton *configButton = nullptr;
+
+	QString newer_version_available;
 
 	std::map<std::string, obs_output_t *> outputs;
 
@@ -36,6 +39,9 @@ private:
 
 	static void stream_output_stop(void *data, calldata_t *calldata);
 	static void stream_output_start(void *data, calldata_t *calldata);
+
+private slots:
+	void NewerVersionAvailable(QString version);
 
 public:
 	MultistreamDock(QWidget *parent = nullptr);

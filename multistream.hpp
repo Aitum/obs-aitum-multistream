@@ -18,6 +18,7 @@ private:
 	obs_data_t *current_config = nullptr;
 
 	QVBoxLayout *mainCanvasLayout = nullptr;
+	QVBoxLayout *verticalCanvasLayout = nullptr;
 	QPushButton *mainStreamButton = nullptr;
 	QPushButton *configButton = nullptr;
 
@@ -27,7 +28,7 @@ private:
 
 	void LoadSettingsFile();
 	void LoadSettings();
-	void LoadOutput(obs_data_t *data);
+	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
 	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
@@ -46,4 +47,5 @@ private slots:
 public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
+	void LoadVerticalOutputs();
 };

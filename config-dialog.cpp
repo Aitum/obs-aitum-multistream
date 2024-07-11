@@ -61,10 +61,9 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("MainCanvas")));
 
-	//listwidgetitem = new QListWidgetItem(listWidget);
-	//listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
-	//listwidgetitem->setIcon(main_window->property("defaultIcon").value<QIcon>());
-	//listwidgetitem->setText(QString::fromUtf8(obs_module_text("Vertical outputs")));
+	listwidgetitem = new QListWidgetItem(listWidget);
+	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+	listwidgetitem->setText(QString::fromUtf8(obs_module_text("VerticalCanvas")));
 
 	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(main_window->property("defaultIcon").value<QIcon>());
@@ -102,14 +101,17 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
 
-	/*
-	auto verticalOutputsPage = new QWidget;
+	auto verticalOutputsPage = new QGroupBox;
+	verticalOutputsPage->setProperty("customTitle", QVariant(true));
+	verticalOutputsPage->setStyleSheet(QString("QGroupBox[customTitle=\"true\"]{ padding-top: 4px;}"));
+	verticalOutputsPage->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(verticalOutputsPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
-	settingsPages->addWidget(scrollArea);*/
+	settingsPages->addWidget(scrollArea);
 
 	troubleshooterText = new QTextEdit;
 	troubleshooterText->setReadOnly(true);
@@ -185,6 +187,35 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	mainOutputsPage->setLayout(mainOutputsLayout);
 
+	verticalOutputsLayout = new QFormLayout;
+	verticalOutputsLayout->setContentsMargins(9, 2, 9, 9);
+	verticalOutputsLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	verticalOutputsLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+
+	streaming_title_layout = new QHBoxLayout;
+	streaming_title = new QLabel(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+	streaming_title->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
+	streaming_title_layout->addWidget(streaming_title, 0, Qt::AlignLeft);
+	//auto guide_link = new QLabel(QString::fromUtf8("<a href=\"https://l.aitum.tv/vh-streaming-settings\">") + QString::fromUtf8(obs_module_text("ViewGuide")) + QString::fromUtf8("</a>"));
+	//guide_link->setOpenExternalLinks(true);
+	addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
+	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	connect(addButton, &QPushButton::clicked, [this] {
+		if (!vertical_outputs)
+			return;
+		auto s = obs_data_create();
+		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
+		obs_data_array_push_back(vertical_outputs, s);
+		AddServer(verticalOutputsLayout, s);
+		obs_data_release(s);
+	});
+
+	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);
+
+	verticalOutputsLayout->addRow(streaming_title_layout);
+
+	verticalOutputsPage->setLayout(verticalOutputsLayout);
+
 	const auto version =
 		new QLabel(QString::fromUtf8(obs_module_text("Version")) + " " + QString::fromUtf8(PROJECT_VERSION) + " " +
 			   QString::fromUtf8(obs_module_text("MadeBy")) + " <a href=\"https://aitum.tv\">Aitum</a>");
@@ -226,6 +257,8 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 OBSBasicSettings::~OBSBasicSettings()
 {
+	if (vertical_outputs)
+		obs_data_array_release(vertical_outputs);
 	for (auto it = encoder_properties.begin(); it != encoder_properties.end(); it++)
 		obs_properties_destroy(it->second);
 }
@@ -278,7 +311,7 @@ void OBSBasicSettings::SetGeneralIcon(const QIcon &icon)
 void OBSBasicSettings::SetStreamIcon(const QIcon &icon)
 {
 	listWidget->item(1)->setIcon(icon);
-	//listWidget->item(2)->setIcon(icon);
+	listWidget->item(2)->setIcon(icon);
 }
 
 void OBSBasicSettings::SetOutputIcon(const QIcon &icon)
@@ -579,17 +612,17 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	server->addItem("rtmps://b.rtmps.youtube.com:443/live2?backup=1");
 	server->addItem("rtmp://a.rtmp.youtube.com/live2");
 	server->addItem("rtmp://b.rtmp.youtube.com/live2?backup=1");
-	server->setCurrentText(QString::fromUtf8(obs_data_get_string(settings, "server")));
+	server->setCurrentText(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
 	connect(server, &QComboBox::currentTextChanged,
-		[server, settings] { obs_data_set_string(settings, "server", server->currentText().toUtf8().constData()); });
+		[server, settings] { obs_data_set_string(settings, "stream_server", server->currentText().toUtf8().constData()); });
 	serverLayout->addRow(QString::fromUtf8(obs_module_text("Server")), server);
 
 	QLayout *subLayout = new QHBoxLayout();
 	auto key = new QLineEdit;
 	key->setEchoMode(QLineEdit::Password);
-	key->setText(QString::fromUtf8(obs_data_get_string(settings, "key")));
+	key->setText(QString::fromUtf8(obs_data_get_string(settings, "stream_key")));
 	connect(key, &QLineEdit::textChanged,
-		[key, settings] { obs_data_set_string(settings, "key", key->text().toUtf8().constData()); });
+		[key, settings] { obs_data_set_string(settings, "stream_key", key->text().toUtf8().constData()); });
 
 	QPushButton *show = new QPushButton();
 	show->setText(QString::fromUtf8(obs_frontend_get_locale_string("Show")));
@@ -608,6 +641,46 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	serverGroup->setLayout(serverLayout);
 
 	outputsLayout->addRow(serverGroup);
+}
+
+void OBSBasicSettings::LoadVerticalSettings()
+{
+
+	while (verticalOutputsLayout->rowCount() > 1) {
+		auto i = verticalOutputsLayout->takeRow(1).fieldItem;
+		RemoveLayoutItem(i);
+		verticalOutputsLayout->removeRow(1);
+	}
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
+		calldata_free(&cd);
+		return;
+	}
+	if (vertical_outputs)
+		obs_data_array_release(vertical_outputs);
+	vertical_outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
+	obs_data_array_enum(
+		vertical_outputs,
+		[](obs_data_t *data, void *param) {
+			auto d = (OBSBasicSettings *)param;
+			d->AddServer(d->verticalOutputsLayout, data);
+		},
+		this);
+	calldata_free(&cd);
+}
+
+void OBSBasicSettings::SaveVerticalSettings()
+{
+	if (!vertical_outputs)
+		return;
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	calldata_set_ptr(&cd, "outputs", vertical_outputs);
+	proc_handler_call(ph, "aitum_vertical_set_stream_settings", &cd);
+	calldata_free(&cd);
 }
 
 void OBSBasicSettings::LoadSettings(obs_data_t *settings)

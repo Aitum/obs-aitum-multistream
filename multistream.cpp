@@ -65,6 +65,11 @@ bool obs_module_load(void)
 	return true;
 }
 
+void obs_module_post_load()
+{
+	multistream_dock->LoadVerticalOutputs();
+}
+
 void obs_module_unload()
 {
 	update_info_destroy(version_update_info);
@@ -153,9 +158,13 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	mainCanvasGroup->setLayout(mainCanvasLayout);
 
 	tl->addWidget(mainCanvasGroup);
-	tl->addStretch(1);
 
-	//auto verticalCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+	auto verticalCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+	verticalCanvasLayout = new QVBoxLayout;
+	verticalCanvasGroup->setLayout(verticalCanvasLayout);
+	tl->addWidget(verticalCanvasGroup);
+
+	tl->addStretch(1);
 
 	//tl->addWidget(verticalCanvasGroup);
 	QScrollArea *scrollArea = new QScrollArea;
@@ -183,6 +192,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		if (current_config)
 			obs_data_apply(settings, current_config);
 		configDialog->LoadSettings(settings);
+		configDialog->LoadVerticalSettings();
 		configDialog->LoadOutputStats();
 		configDialog->SetNewerVersion(newer_version_available);
 		configDialog->setResult(QDialog::Rejected);
@@ -192,6 +202,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 				obs_data_release(settings);
 				SaveSettings();
 				LoadSettings();
+				configDialog->SaveVerticalSettings();
+				LoadVerticalOutputs();
 			} else {
 				current_config = settings;
 			}
@@ -316,13 +328,13 @@ void MultistreamDock::LoadSettings()
 		outputs,
 		[](obs_data_t *data, void *param) {
 			auto d = (MultistreamDock *)param;
-			d->LoadOutput(data);
+			d->LoadOutput(data, false);
 		},
 		this);
 	obs_data_array_release(outputs);
 }
 
-void MultistreamDock::LoadOutput(obs_data_t *data)
+void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 {
 	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
 	for (int i = 1; i < mainCanvasLayout->count(); i++) {
@@ -346,15 +358,42 @@ void MultistreamDock::LoadOutput(obs_data_t *data)
 	streamButton->setIcon(streamInactiveIcon);
 	streamButton->setCheckable(true);
 	streamButton->setChecked(false);
-	connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
-		if (streamButton->isChecked()) {
-			if (!StartOutput(data, streamButton))
-				streamButton->setChecked(false);
-		} else {
-		}
-		streamButton->setStyleSheet(QString::fromUtf8(streamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
-		streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
-	});
+	if (vertical) {
+		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
+			auto ph = obs_get_proc_handler();
+			struct calldata cd;
+			calldata_init(&cd);
+			calldata_set_string(&cd, "name", obs_data_get_string(data, "name"));
+			if (streamButton->isChecked()) {
+				if (!proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd))
+					streamButton->setChecked(false);
+			} else {
+				proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
+			}
+			calldata_free(&cd);
+			streamButton->setStyleSheet(
+				QString::fromUtf8(streamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
+			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
+		});
+	} else {
+		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
+			if (streamButton->isChecked()) {
+				if (!StartOutput(data, streamButton))
+					streamButton->setChecked(false);
+			} else {
+				const char *name = obs_data_get_string(data, "name");
+				auto it = outputs.find(name);
+				if (it != outputs.end()) {
+					obs_output_stop(it->second);
+					obs_output_release(it->second);
+					outputs.erase(it);
+				}
+			}
+			streamButton->setStyleSheet(
+				QString::fromUtf8(streamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
+			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
+		});
+	}
 	//streamButton->setSizePolicy(sp2);
 	streamButton->setToolTip(QString::fromUtf8(obs_module_text("Stream")));
 	l2->addWidget(streamButton);
@@ -362,7 +401,10 @@ void MultistreamDock::LoadOutput(obs_data_t *data)
 
 	streamGroup->setLayout(streamLayout);
 
-	mainCanvasLayout->addWidget(streamGroup);
+	if (vertical)
+		verticalCanvasLayout->addWidget(streamGroup);
+	else
+		mainCanvasLayout->addWidget(streamGroup);
 }
 
 static void ensure_directory(char *path)
@@ -441,6 +483,8 @@ void MultistreamDock::SaveSettings()
 
 bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton)
 {
+	if (!settings)
+		return false;
 	const char *name = obs_data_get_string(settings, "name");
 	auto old = outputs.find(name);
 	if (old != outputs.end()) {
@@ -535,14 +579,25 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	if (!aenc || !venc) {
 		return false;
 	}
-	auto server = obs_data_get_string(settings, "server");
+	auto server = obs_data_get_string(settings, "stream_server");
+	if (!server || !strlen(server)) {
+		server = obs_data_get_string(settings, "server");
+		if (server && strlen(server))
+			obs_data_set_string(settings, "stream_server", server);
+	}
 	bool whip = strstr(server, "whip") != nullptr;
 	auto s = obs_data_create();
 	obs_data_set_string(s, "server", server);
+	auto key = obs_data_get_string(settings, "stream_key");
+	if (!key || !strlen(key)) {
+		key = obs_data_get_string(settings, "key");
+		if (key && strlen(key))
+			obs_data_set_string(settings, "stream_key", key);
+	}
 	if (whip) {
-		obs_data_set_string(s, "bearer_token", obs_data_get_string(settings, "key"));
+		obs_data_set_string(s, "bearer_token", key);
 	} else {
-		obs_data_set_string(s, "key", obs_data_get_string(settings, "key"));
+		obs_data_set_string(s, "key", key);
 	}
 	//use_auth
 	//username
@@ -620,4 +675,47 @@ void MultistreamDock::NewerVersionAvailable(QString version)
 {
 	newer_version_available = version;
 	configButton->setStyleSheet(QString::fromUtf8("background: rgb(192,128,0);"));
+}
+
+void MultistreamDock::LoadVerticalOutputs()
+{
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
+		calldata_free(&cd);
+		return;
+	}
+
+	auto outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
+	calldata_free(&cd);
+	auto count = obs_data_array_count(outputs);
+	int idx = 1;
+	while (auto item = verticalCanvasLayout->itemAt(idx)) {
+		auto streamGroup = item->widget();
+		auto name = streamGroup->objectName();
+		bool found = false;
+		for (size_t i = 0; i < count; i++) {
+			auto item = obs_data_array_item(outputs, i);
+			if (QString::fromUtf8(obs_data_get_string(item, "name")) == name) {
+				found = true;
+			}
+			obs_data_release(item);
+		}
+		if (!found) {
+			verticalCanvasLayout->removeWidget(streamGroup);
+			RemoveWidget(streamGroup);
+		} else {
+			idx++;
+		}
+	}
+
+	obs_data_array_enum(
+		outputs,
+		[](obs_data_t *data, void *param) {
+			auto d = (MultistreamDock *)param;
+			d->LoadOutput(data, true);
+		},
+		this);
+	obs_data_array_release(outputs);
 }

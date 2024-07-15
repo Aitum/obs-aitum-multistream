@@ -127,9 +127,13 @@ auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 void showVerticalWarning(QVBoxLayout *verticalLayout)
 {
 	auto verticalWarning = new QWidget;
+    verticalWarning->setContentsMargins(0, 0, 0, 0);
+    
 	auto verticalWarningLayout = new QVBoxLayout;
+    verticalWarningLayout->setContentsMargins(0, 0, 0, 0);
 
 	auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
+    label->setStyleSheet(QString("padding: 0px;"));
 	label->setWordWrap(true);
 	verticalWarningLayout->addWidget(label);
 	verticalWarning->setLayout(verticalWarningLayout);
@@ -142,11 +146,13 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// Main layout
 	auto mainLayout = new QVBoxLayout;
 	mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
 	setLayout(mainLayout);
 
 	auto t = new QWidget;
 	auto tl = new QVBoxLayout;
 	tl->setSpacing(8); // between canvas groups
+    tl->setContentsMargins(0, 0, 0, 0);
 	t->setStyleSheet(QString("padding: 0px; margin:0px;"));
 	t->setLayout(tl);
 
@@ -220,8 +226,12 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	mainLayout->addWidget(scrollArea, 1);
 
+    // Bottom Button Row
 	auto buttonRow = new QHBoxLayout;
-	buttonRow->setContentsMargins(0, 0, 0, 0);
+	buttonRow->setContentsMargins(8, 6, 8, 4);
+    buttonRow->setSpacing(8);
+    
+    // Config Button
 	configButton = new QPushButton;
 	configButton->setMinimumHeight(30);
 	configButton->setProperty("themeID", "configIconSmall");
@@ -259,6 +269,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	buttonRow->addWidget(configButton);
 
+    // Aitum Button
 	auto aitumButton = new QPushButton;
 	aitumButton->setMinimumHeight(30);
 	//aitumButton->setSizePolicy(sp2);

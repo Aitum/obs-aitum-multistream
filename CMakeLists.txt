@@ -17,10 +17,10 @@ include(helpers)
 
 add_library(${PROJECT_NAME} MODULE)
 
-find_package(libobs REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE OBS::libobs)
 
 if(BUILD_OUT_OF_TREE)
+  find_package(libobs REQUIRED)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
 else()

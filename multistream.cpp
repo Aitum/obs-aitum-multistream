@@ -105,35 +105,77 @@ void RemoveWidget(QWidget *widget)
 	delete widget;
 }
 
+// Output button styling
+void outputButtonStyle(QPushButton *button) {
+    button->setMinimumHeight(24);
+    
+    std::string baseStyles = "min-width: 30px; padding: 2px 10px; ";
+    
+    button->setStyleSheet(QString::fromUtf8(baseStyles + (button->isChecked() ? "background: rgb(0,210,153);" : "")));
+}
+
+// Common styling things here
+auto canvasGroupStyle = QString("padding: 12px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
+auto outputTitleStyle = QString("QLabel{}"); // "Built -in stream"
+auto outputGroupStyle = QString("background-color: %1; padding: 0px;").arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
+
+// For showing warning for no vertical integration
+void showVerticalWarning(QVBoxLayout *verticalLayout) {
+    auto verticalWarning = new QWidget;
+    auto verticalWarningLayout = new QVBoxLayout;
+    
+    auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
+    label->setWordWrap(true);
+    verticalWarningLayout->addWidget(label);
+    verticalWarning->setLayout(verticalWarningLayout);
+    
+    verticalLayout->addWidget(verticalWarning);
+}
+
+
 MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 {
-	auto l = new QVBoxLayout;
-	setLayout(l);
+//    setStyleSheet(QString("padding: 0px;"));
+
+    // Main layout
+    auto mainLayout = new QVBoxLayout;
+	setLayout(mainLayout);
+    
 	auto t = new QWidget;
 	auto tl = new QVBoxLayout;
+    tl->setSpacing(8); // between canvas groups
+    t->setStyleSheet(QString("padding: 0px; margin:0px;"));
 	t->setLayout(tl);
-
+    
+    // Group for built in canvas
 	auto mainCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("MainCanvas")));
-	//mainCanvasGroup->setObjectName("mainCanvasGroup");
-
-	//mainCanvasGroup->setStyleSheet(QString("QGroupBox#mainCanvasGroup{background-color: %1;}") // padding-top: 4px;					       .arg(main_window->palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
-
+    mainCanvasGroup->setStyleSheet(canvasGroupStyle);
+    
 	mainCanvasLayout = new QVBoxLayout;
-
+    mainCanvasLayout->setSpacing(4); // between outputs on main canvas
+                                   
 	auto mainStreamGroup = new QGroupBox;
-	mainStreamGroup->setStyleSheet(QString("QGroupBox{background-color: %1; padding-top: 4px;}")
-					       .arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
-	//mainStreamGroup->setStyleSheet(QString("QGroupBox{padding-top: 4px;}"));
+    mainStreamGroup->setStyleSheet(outputGroupStyle);
+    
 	auto mainStreamLayout = new QVBoxLayout;
 
 	auto l2 = new QHBoxLayout;
-	l2->addWidget(new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream"))), 1);
+        
+    // Label for built in stream
+    auto bisHeaderLabel = new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream")));
+    bisHeaderLabel->setStyleSheet(outputTitleStyle);
+    
+	l2->addWidget(bisHeaderLabel, 1);
+    
+    
 	mainStreamButton = new QPushButton;
-	mainStreamButton->setMinimumHeight(30);
 	mainStreamButton->setObjectName(QStringLiteral("canvasStream"));
 	mainStreamButton->setIcon(streamInactiveIcon);
 	mainStreamButton->setCheckable(true);
 	mainStreamButton->setChecked(false);
+    
+    outputButtonStyle(mainStreamButton);
+    
 	connect(mainStreamButton, &QPushButton::clicked, [this] {
 		if (obs_frontend_streaming_active()) {
 			obs_frontend_streaming_stop();
@@ -142,8 +184,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_frontend_streaming_start();
 			mainStreamButton->setChecked(true);
 		}
-		mainStreamButton->setStyleSheet(
-			QString::fromUtf8(mainStreamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
+        
+        outputButtonStyle(mainStreamButton);
 		mainStreamButton->setIcon(mainStreamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
 	});
 	//streamButton->setSizePolicy(sp2);
@@ -159,7 +201,10 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	tl->addWidget(mainCanvasGroup);
 
+    // VERTICAL
 	auto verticalCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+    verticalCanvasGroup->setStyleSheet(canvasGroupStyle);
+    
 	verticalCanvasLayout = new QVBoxLayout;
 	verticalCanvasGroup->setLayout(verticalCanvasLayout);
 	tl->addWidget(verticalCanvasGroup);
@@ -173,7 +218,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	l->addWidget(scrollArea, 1);
+	mainLayout->addWidget(scrollArea, 1);
 
 	auto buttonRow = new QHBoxLayout;
 	buttonRow->setContentsMargins(0, 0, 0, 0);
@@ -222,7 +267,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	QPushButton::connect(aitumButton, &QPushButton::clicked, [] { QDesktopServices::openUrl(QUrl("https://aitum.tv")); });
 	buttonRow->addWidget(aitumButton);
 
-	l->addLayout(buttonRow);
+	mainLayout->addLayout(buttonRow);
 
 	obs_frontend_add_event_callback(frontend_event, this);
 }
@@ -244,12 +289,14 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 		md->SaveSettings();
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 		md->mainStreamButton->setChecked(true);
-		md->mainStreamButton->setStyleSheet(QString::fromUtf8("background: rgb(0,210,153);"));
+        outputButtonStyle(md->mainStreamButton);
+        
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
-		md->mainStreamButton->setStyleSheet(QString::fromUtf8(""));
-		md->mainStreamButton->setIcon(md->streamInactiveIcon);
+        outputButtonStyle(md->mainStreamButton);
+
+        md->mainStreamButton->setIcon(md->streamInactiveIcon);
 	}
 }
 
@@ -344,10 +391,8 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 		}
 	}
 	auto streamGroup = new QGroupBox;
-	streamGroup->setStyleSheet(QString("QGroupBox{background-color: %1; padding-top: 4px;}")
-					   .arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
+    streamGroup->setStyleSheet(outputGroupStyle);
 	streamGroup->setObjectName(name);
-	//mainStreamGroup->setStyleSheet(QString("QGroupBox{padding-top: 4px;}"));
 	auto streamLayout = new QVBoxLayout;
 
 	auto l2 = new QHBoxLayout;
@@ -358,6 +403,8 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	streamButton->setIcon(streamInactiveIcon);
 	streamButton->setCheckable(true);
 	streamButton->setChecked(false);
+    outputButtonStyle(streamButton);
+    
 	if (vertical) {
 		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
 			auto ph = obs_get_proc_handler();
@@ -371,9 +418,9 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 				proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
 			}
 			calldata_free(&cd);
-			streamButton->setStyleSheet(
-				QString::fromUtf8(streamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
+
 			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
+            outputButtonStyle(streamButton);
 		});
 	} else {
 		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
@@ -389,9 +436,9 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 					outputs.erase(it);
 				}
 			}
-			streamButton->setStyleSheet(
-				QString::fromUtf8(streamButton->isChecked() ? "background: rgb(0,210,153);" : ""));
+
 			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
+            outputButtonStyle(streamButton);
 		});
 	}
 	//streamButton->setSizePolicy(sp2);
@@ -683,10 +730,11 @@ void MultistreamDock::LoadVerticalOutputs()
 	struct calldata cd;
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
+        showVerticalWarning(verticalCanvasLayout); // show warning
 		calldata_free(&cd);
 		return;
 	}
-
+    
 	auto outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 	calldata_free(&cd);
 	auto count = obs_data_array_count(outputs);

@@ -237,8 +237,8 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	QHBoxLayout *bottomLayout = new QHBoxLayout;
 	bottomLayout->addWidget(version, 1, Qt::AlignLeft);
 	bottomLayout->addWidget(newVersion, 1, Qt::AlignLeft);
-	bottomLayout->addWidget(okButton, 0, Qt::AlignRight);
 	bottomLayout->addWidget(cancelButton, 0, Qt::AlignRight);
+	bottomLayout->addWidget(okButton, 0, Qt::AlignRight);
 
 	QHBoxLayout *contentLayout = new QHBoxLayout;
 	contentLayout->addWidget(listWidget);

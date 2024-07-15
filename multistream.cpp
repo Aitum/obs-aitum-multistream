@@ -384,10 +384,21 @@ void MultistreamDock::LoadSettings()
 void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 {
 	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
-	for (int i = 1; i < mainCanvasLayout->count(); i++) {
-		auto item = mainCanvasLayout->itemAt(i);
-		if (item->widget()->objectName() == name) {
-			return;
+	if (vertical) {
+		for (int i = 1; i < verticalCanvasLayout->count(); i++) {
+			auto item = verticalCanvasLayout->itemAt(i);
+			auto oName = item->widget()->objectName();
+			if (oName == name) {
+				return;
+			}
+		}
+	} else {
+		for (int i = 1; i < mainCanvasLayout->count(); i++) {
+			auto item = mainCanvasLayout->itemAt(i);
+			auto oName = item->widget()->objectName();
+			if (oName == name) {
+				return;
+			}
 		}
 	}
 	auto streamGroup = new QGroupBox;
@@ -683,8 +694,8 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	}
 
 	signal_handler_t *signal = obs_output_get_signal_handler(output);
-	//signal_handler_disconnect(signal, "start", stream_output_start, streamButton);
-	//signal_handler_disconnect(signal, "stop", stream_output_stop, streamButton);
+	signal_handler_disconnect(signal, "start", stream_output_start, streamButton);
+	signal_handler_disconnect(signal, "stop", stream_output_stop, streamButton);
 	signal_handler_connect(signal, "start", stream_output_start, streamButton);
 	signal_handler_connect(signal, "stop", stream_output_stop, streamButton);
 

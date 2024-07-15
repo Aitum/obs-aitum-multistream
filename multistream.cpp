@@ -106,76 +106,76 @@ void RemoveWidget(QWidget *widget)
 }
 
 // Output button styling
-void outputButtonStyle(QPushButton *button) {
-    button->setMinimumHeight(24);
-    
-    std::string baseStyles = "min-width: 30px; padding: 2px 10px; ";
-    
-    button->setStyleSheet(QString::fromUtf8(baseStyles + (button->isChecked() ? "background: rgb(0,210,153);" : "")));
+void outputButtonStyle(QPushButton *button)
+{
+	button->setMinimumHeight(24);
+
+	std::string baseStyles = "min-width: 30px; padding: 2px 10px; ";
+
+	button->setStyleSheet(QString::fromUtf8(baseStyles + (button->isChecked() ? "background: rgb(0,210,153);" : "")));
 }
 
 // Common styling things here
-auto canvasGroupStyle = QString("padding: 12px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
-auto outputTitleStyle = QString("QLabel{}"); // "Built -in stream"
-auto outputGroupStyle = QString("background-color: %1; padding: 0px;").arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
+auto canvasGroupStyle = QString("padding: 16px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
+auto outputTitleStyle = QString("QLabel{}");                   // "Built -in stream"
+auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
+				.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
 
 // For showing warning for no vertical integration
-void showVerticalWarning(QVBoxLayout *verticalLayout) {
-    auto verticalWarning = new QWidget;
-    auto verticalWarningLayout = new QVBoxLayout;
-    
-    auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
-    label->setWordWrap(true);
-    verticalWarningLayout->addWidget(label);
-    verticalWarning->setLayout(verticalWarningLayout);
-    
-    verticalLayout->addWidget(verticalWarning);
-}
+void showVerticalWarning(QVBoxLayout *verticalLayout)
+{
+	auto verticalWarning = new QWidget;
+	auto verticalWarningLayout = new QVBoxLayout;
 
+	auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
+	label->setWordWrap(true);
+	verticalWarningLayout->addWidget(label);
+	verticalWarning->setLayout(verticalWarningLayout);
+
+	verticalLayout->addWidget(verticalWarning);
+}
 
 MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 {
-//    setStyleSheet(QString("padding: 0px;"));
-
-    // Main layout
-    auto mainLayout = new QVBoxLayout;
+	// Main layout
+	auto mainLayout = new QVBoxLayout;
+	mainLayout->setContentsMargins(0, 0, 0, 0);
 	setLayout(mainLayout);
-    
+
 	auto t = new QWidget;
 	auto tl = new QVBoxLayout;
-    tl->setSpacing(8); // between canvas groups
-    t->setStyleSheet(QString("padding: 0px; margin:0px;"));
+	tl->setSpacing(8); // between canvas groups
+	t->setStyleSheet(QString("padding: 0px; margin:0px;"));
 	t->setLayout(tl);
-    
-    // Group for built in canvas
+
+	// Group for built in canvas
 	auto mainCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("MainCanvas")));
-    mainCanvasGroup->setStyleSheet(canvasGroupStyle);
-    
+	mainCanvasGroup->setStyleSheet(canvasGroupStyle);
+
 	mainCanvasLayout = new QVBoxLayout;
-    mainCanvasLayout->setSpacing(4); // between outputs on main canvas
-                                   
+	mainCanvasLayout->setSpacing(4); // between outputs on main canvas
+
 	auto mainStreamGroup = new QGroupBox;
-    mainStreamGroup->setStyleSheet(outputGroupStyle);
-    
+	mainStreamGroup->setStyleSheet(outputGroupStyle);
+
 	auto mainStreamLayout = new QVBoxLayout;
 
 	auto l2 = new QHBoxLayout;
-        
-    // Label for built in stream
-    auto bisHeaderLabel = new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream")));
-    bisHeaderLabel->setStyleSheet(outputTitleStyle);
-    
+
+	// Label for built in stream
+	auto bisHeaderLabel = new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream")));
+	bisHeaderLabel->setStyleSheet(outputTitleStyle);
+
 	l2->addWidget(bisHeaderLabel, 1);
-    
-    
+
 	mainStreamButton = new QPushButton;
 	mainStreamButton->setObjectName(QStringLiteral("canvasStream"));
 	mainStreamButton->setIcon(streamInactiveIcon);
 	mainStreamButton->setCheckable(true);
 	mainStreamButton->setChecked(false);
-    
-    outputButtonStyle(mainStreamButton);
-    
+
+	outputButtonStyle(mainStreamButton);
+
 	connect(mainStreamButton, &QPushButton::clicked, [this] {
 		if (obs_frontend_streaming_active()) {
 			obs_frontend_streaming_stop();
@@ -184,8 +184,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_frontend_streaming_start();
 			mainStreamButton->setChecked(true);
 		}
-        
-        outputButtonStyle(mainStreamButton);
+
+		outputButtonStyle(mainStreamButton);
 		mainStreamButton->setIcon(mainStreamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
 	});
 	//streamButton->setSizePolicy(sp2);
@@ -201,10 +201,10 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	tl->addWidget(mainCanvasGroup);
 
-    // VERTICAL
+	// VERTICAL
 	auto verticalCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VerticalCanvas")));
-    verticalCanvasGroup->setStyleSheet(canvasGroupStyle);
-    
+	verticalCanvasGroup->setStyleSheet(canvasGroupStyle);
+
 	verticalCanvasLayout = new QVBoxLayout;
 	verticalCanvasGroup->setLayout(verticalCanvasLayout);
 	tl->addWidget(verticalCanvasGroup);
@@ -289,14 +289,14 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 		md->SaveSettings();
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 		md->mainStreamButton->setChecked(true);
-        outputButtonStyle(md->mainStreamButton);
-        
+		outputButtonStyle(md->mainStreamButton);
+
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
-        outputButtonStyle(md->mainStreamButton);
+		outputButtonStyle(md->mainStreamButton);
 
-        md->mainStreamButton->setIcon(md->streamInactiveIcon);
+		md->mainStreamButton->setIcon(md->streamInactiveIcon);
 	}
 }
 
@@ -402,7 +402,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 		}
 	}
 	auto streamGroup = new QGroupBox;
-    streamGroup->setStyleSheet(outputGroupStyle);
+	streamGroup->setStyleSheet(outputGroupStyle);
 	streamGroup->setObjectName(name);
 	auto streamLayout = new QVBoxLayout;
 
@@ -414,8 +414,8 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	streamButton->setIcon(streamInactiveIcon);
 	streamButton->setCheckable(true);
 	streamButton->setChecked(false);
-    outputButtonStyle(streamButton);
-    
+	outputButtonStyle(streamButton);
+
 	if (vertical) {
 		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
 			auto ph = obs_get_proc_handler();
@@ -431,7 +431,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 			calldata_free(&cd);
 
 			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
-            outputButtonStyle(streamButton);
+			outputButtonStyle(streamButton);
 		});
 	} else {
 		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
@@ -449,7 +449,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 			}
 
 			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
-            outputButtonStyle(streamButton);
+			outputButtonStyle(streamButton);
 		});
 	}
 	//streamButton->setSizePolicy(sp2);
@@ -741,11 +741,11 @@ void MultistreamDock::LoadVerticalOutputs()
 	struct calldata cd;
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
-        showVerticalWarning(verticalCanvasLayout); // show warning
+		showVerticalWarning(verticalCanvasLayout); // show warning
 		calldata_free(&cd);
 		return;
 	}
-    
+
 	auto outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 	calldata_free(&cd);
 	auto count = obs_data_array_count(outputs);

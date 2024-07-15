@@ -106,13 +106,15 @@ void RemoveWidget(QWidget *widget)
 }
 
 // Output button styling
-void outputButtonStyle(QPushButton *button)
+void MultistreamDock::outputButtonStyle(QPushButton *button)
 {
 	button->setMinimumHeight(24);
 
 	std::string baseStyles = "min-width: 30px; padding: 2px 10px; ";
 
 	button->setStyleSheet(QString::fromUtf8(baseStyles + (button->isChecked() ? "background: rgb(0,210,153);" : "")));
+
+	button->setIcon(button->isChecked() ? streamActiveIcon : streamInactiveIcon);
 }
 
 // Common styling things here
@@ -184,9 +186,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_frontend_streaming_start();
 			mainStreamButton->setChecked(true);
 		}
-
 		outputButtonStyle(mainStreamButton);
-		mainStreamButton->setIcon(mainStreamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
 	});
 	//streamButton->setSizePolicy(sp2);
 	mainStreamButton->setToolTip(QString::fromUtf8(obs_module_text("Stream")));
@@ -289,14 +289,12 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 		md->SaveSettings();
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 		md->mainStreamButton->setChecked(true);
-		outputButtonStyle(md->mainStreamButton);
+		md->outputButtonStyle(md->mainStreamButton);
 
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
-		outputButtonStyle(md->mainStreamButton);
-
-		md->mainStreamButton->setIcon(md->streamInactiveIcon);
+		md->outputButtonStyle(md->mainStreamButton);
 	}
 }
 
@@ -430,7 +428,6 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 			}
 			calldata_free(&cd);
 
-			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
 			outputButtonStyle(streamButton);
 		});
 	} else {
@@ -447,8 +444,6 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 					outputs.erase(it);
 				}
 			}
-
-			streamButton->setIcon(streamButton->isChecked() ? streamActiveIcon : streamInactiveIcon);
 			outputButtonStyle(streamButton);
 		});
 	}

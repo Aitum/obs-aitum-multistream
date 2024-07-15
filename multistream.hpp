@@ -33,6 +33,8 @@ private:
 
 	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
 
+	void outputButtonStyle(QPushButton *button);
+
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
 

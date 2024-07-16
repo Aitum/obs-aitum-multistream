@@ -4,8 +4,11 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QStackedWidget>
+#include "obs-module.h"
+
 
 OutputDialog::OutputDialog(QDialog *parent) : QDialog(parent) {
+	setModal(true);
 	stackedWidget = new QStackedWidget;
 	
 	// Service selection page
@@ -23,6 +26,7 @@ OutputDialog::OutputDialog(QDialog *parent) : QDialog(parent) {
 
 	stackedWidget->setCurrentIndex(0);
 	
+	setWindowTitle(obs_module_text("NewOutputWindowTitle"));
 	
 	auto stackedLayout = new QVBoxLayout;
 	stackedLayout->addWidget(stackedWidget);
@@ -40,8 +44,23 @@ QWidget *OutputDialog::WizardServicePage() {
 		
 	auto pageLayout = new QVBoxLayout;
 	
-	auto title = new QLabel(QString("This is my title"));
-	pageLayout->addWidget(title);
+	auto description = new QLabel(QString::fromUtf8(obs_module_text("NewOutputSelectService")));
+	pageLayout->addWidget(description);
+	
+	// layout for service selection
+	auto gap = 8;
+
+	auto selectionLayout = new QVBoxLayout;
+	selectionLayout->setSpacing(gap);
+	
+	// row 1
+	auto rowOne = new QHBoxLayout;
+	
+	
+	// row 2
+	
+	
+	
 	
 	page->setLayout(pageLayout);
 	

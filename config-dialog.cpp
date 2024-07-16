@@ -168,6 +168,9 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	connect(addButtonTest, &QPushButton::clicked, [this] {
 		auto outputDialog = new OutputDialog(this);
 		
+		outputDialog->setWindowModality(Qt::WindowModal);
+		outputDialog->setModal(true);
+		
 		if (outputDialog->exec() == QDialog::Accepted) {
 			// got a result
 			blog(LOG_WARNING, "[Aitum Multistream] output accepted");

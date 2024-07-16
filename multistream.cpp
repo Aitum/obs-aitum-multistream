@@ -141,7 +141,8 @@ void MultistreamDock::outputButtonStyle(QPushButton *button)
 }
 
 // Common styling things here
-auto canvasGroupStyle = QString("padding: 16px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
+auto canvasGroupStyle = QString("padding: 0px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
+auto canvasGroupHeaderStyle = QString("padding: 0px 0px 0px 0px; font-weight: bold;"); // header of each group
 auto outputTitleStyle = QString("QLabel{}");                   // "Built -in stream"
 auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 				.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
@@ -181,12 +182,25 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	t->setLayout(tl);
 
 	// Group for built in canvas
-	auto mainCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("MainCanvas")));
+	auto mainCanvasGroup = new QGroupBox;
 	mainCanvasGroup->setStyleSheet(canvasGroupStyle);
-
+	
 	mainCanvasLayout = new QVBoxLayout;
 	mainCanvasLayout->setSpacing(4); // between outputs on main canvas
 
+	// Layout for header row
+	auto mainCanvasTitleRowLayout = new QHBoxLayout;
+	
+	auto mainCanvasLabel = new QLabel(QString::fromUtf8(obs_module_text("MainCanvas")));
+	mainCanvasLabel->setStyleSheet(canvasGroupHeaderStyle);
+	mainCanvasTitleRowLayout->addWidget(mainCanvasLabel);
+	
+	mainCanvasLayout->addLayout(mainCanvasTitleRowLayout);
+
+	// We store the actual outputs here
+	mainCanvasOutputLayout = new QVBoxLayout;
+	mainCanvasOutputLayout->setSpacing(4); // between outputs on main canvas
+	
 	auto mainStreamGroup = new QGroupBox;
 	mainStreamGroup->setStyleSheet(outputGroupStyle);
 
@@ -201,12 +215,10 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// blank because we're not pulling settings through from bis, fix this
 	auto platformIconLabel = new QLabel;
 	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(""));
-//	platformIcon.
 	
 	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 	
 	l2->addWidget(platformIconLabel);
-	
 	l2->addWidget(bisHeaderLabel, 1);
 
 	mainStreamButton = new QPushButton;
@@ -234,14 +246,15 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	mainStreamGroup->setLayout(mainStreamLayout);
 
-	mainCanvasLayout->addWidget(mainStreamGroup);
-
+	mainCanvasOutputLayout->addWidget(mainStreamGroup);
+	
+	mainCanvasLayout->addLayout(mainCanvasOutputLayout);
 	mainCanvasGroup->setLayout(mainCanvasLayout);
 
 	tl->addWidget(mainCanvasGroup);
 
 	// VERTICAL
-	auto verticalCanvasGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+	auto verticalCanvasGroup = new QGroupBox;
 	verticalCanvasGroup->setStyleSheet(canvasGroupStyle);
 
 	verticalCanvasLayout = new QVBoxLayout;
@@ -250,6 +263,21 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	tl->addStretch(1);
 
+	// Layout for header row
+	auto verticalCanvasTitleRowLayout = new QHBoxLayout;
+	
+	auto verticalCanvasLabel = new QLabel(QString::fromUtf8(obs_module_text("VerticalCanvas")));
+	verticalCanvasLabel->setStyleSheet(canvasGroupHeaderStyle);
+	verticalCanvasTitleRowLayout->addWidget(verticalCanvasLabel);
+	
+	verticalCanvasLayout->addLayout(verticalCanvasTitleRowLayout);
+	
+	// We store the actual outputs here
+	verticalCanvasOutputLayout = new QVBoxLayout;
+	verticalCanvasOutputLayout->setSpacing(4); // between outputs on vertical canvas
+	
+	verticalCanvasLayout->addLayout(verticalCanvasOutputLayout); // Add output layout to parent
+	
 	//tl->addWidget(verticalCanvasGroup);
 	QScrollArea *scrollArea = new QScrollArea;
 	scrollArea->setWidget(t);
@@ -328,7 +356,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		}
 
 		int idx = 1;
-		while (auto item = mainCanvasLayout->itemAt(idx++)) {
+		while (auto item = mainCanvasOutputLayout->itemAt(idx++)) {
 			auto streamGroup = item->widget();
 			std::string name = streamGroup->objectName().toUtf8().constData();
 			if (name.empty())
@@ -353,7 +381,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		struct calldata cd;
 		calldata_init(&cd);
 		idx = 0;
-		while (auto item = verticalCanvasLayout->itemAt(idx++)) {
+		while (auto item = verticalCanvasOutputLayout->itemAt(idx++)) {
 			auto streamGroup = item->widget();
 			std::string name = streamGroup->objectName().toUtf8().constData();
 			if (name.empty())
@@ -460,7 +488,7 @@ void MultistreamDock::LoadSettings()
 	auto outputs = obs_data_get_array(current_config, "outputs");
 	auto count = obs_data_array_count(outputs);
 	int idx = 1;
-	while (auto item = mainCanvasLayout->itemAt(idx)) {
+	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
 		auto name = streamGroup->objectName();
 		bool found = false;
@@ -472,7 +500,7 @@ void MultistreamDock::LoadSettings()
 			obs_data_release(item);
 		}
 		if (!found) {
-			mainCanvasLayout->removeWidget(streamGroup);
+			mainCanvasOutputLayout->removeWidget(streamGroup);
 			RemoveWidget(streamGroup);
 		} else {
 			idx++;
@@ -494,16 +522,16 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
 	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
 	if (vertical) {
-		for (int i = 1; i < verticalCanvasLayout->count(); i++) {
-			auto item = verticalCanvasLayout->itemAt(i);
+		for (int i = 1; i < verticalCanvasOutputLayout->count(); i++) {
+			auto item = verticalCanvasOutputLayout->itemAt(i);
 			auto oName = item->widget()->objectName();
 			if (oName == name) {
 				return;
 			}
 		}
 	} else {
-		for (int i = 1; i < mainCanvasLayout->count(); i++) {
-			auto item = mainCanvasLayout->itemAt(i);
+		for (int i = 1; i < mainCanvasOutputLayout->count(); i++) {
+			auto item = mainCanvasOutputLayout->itemAt(i);
 			auto oName = item->widget()->objectName();
 			if (oName == name) {
 				return;
@@ -575,9 +603,9 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	streamGroup->setLayout(streamLayout);
 
 	if (vertical)
-		verticalCanvasLayout->addWidget(streamGroup);
+		verticalCanvasOutputLayout->addWidget(streamGroup);
 	else
-		mainCanvasLayout->addWidget(streamGroup);
+		mainCanvasOutputLayout->addWidget(streamGroup);
 }
 
 static void ensure_directory(char *path)
@@ -857,7 +885,7 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
 		if (firstLoad) { // only display warning on first load
-			showVerticalWarning(verticalCanvasLayout); // show warning
+			showVerticalWarning(verticalCanvasOutputLayout); // show warning
 		}
 		calldata_free(&cd);
 		return;
@@ -867,7 +895,7 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	calldata_free(&cd);
 	auto count = obs_data_array_count(outputs);
 	int idx = 1;
-	while (auto item = verticalCanvasLayout->itemAt(idx)) {
+	while (auto item = verticalCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
 		auto name = streamGroup->objectName();
 		bool found = false;
@@ -879,7 +907,7 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 			obs_data_release(item);
 		}
 		if (!found) {
-			verticalCanvasLayout->removeWidget(streamGroup);
+			verticalCanvasOutputLayout->removeWidget(streamGroup);
 			RemoveWidget(streamGroup);
 		} else {
 			idx++;

@@ -20,7 +20,9 @@ private:
 	obs_data_t *current_config = nullptr;
 
 	QVBoxLayout *mainCanvasLayout = nullptr;
+	QVBoxLayout *mainCanvasOutputLayout = nullptr;
 	QVBoxLayout *verticalCanvasLayout = nullptr;
+	QVBoxLayout *verticalCanvasOutputLayout = nullptr;
 	QPushButton *mainStreamButton = nullptr;
 	QPushButton *configButton = nullptr;
 

@@ -127,13 +127,13 @@ auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 void showVerticalWarning(QVBoxLayout *verticalLayout)
 {
 	auto verticalWarning = new QWidget;
-    verticalWarning->setContentsMargins(0, 0, 0, 0);
-    
+	verticalWarning->setContentsMargins(0, 0, 0, 0);
+
 	auto verticalWarningLayout = new QVBoxLayout;
-    verticalWarningLayout->setContentsMargins(0, 0, 0, 0);
+	verticalWarningLayout->setContentsMargins(0, 0, 0, 0);
 
 	auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
-    label->setStyleSheet(QString("padding: 0px;"));
+	label->setStyleSheet(QString("padding: 0px;"));
 	label->setWordWrap(true);
 	verticalWarningLayout->addWidget(label);
 	verticalWarning->setLayout(verticalWarningLayout);
@@ -146,13 +146,13 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// Main layout
 	auto mainLayout = new QVBoxLayout;
 	mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
+	mainLayout->setSpacing(0);
 	setLayout(mainLayout);
 
 	auto t = new QWidget;
 	auto tl = new QVBoxLayout;
 	tl->setSpacing(8); // between canvas groups
-    tl->setContentsMargins(0, 0, 0, 0);
+	tl->setContentsMargins(0, 0, 0, 0);
 	t->setStyleSheet(QString("padding: 0px; margin:0px;"));
 	t->setLayout(tl);
 
@@ -226,12 +226,12 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	mainLayout->addWidget(scrollArea, 1);
 
-    // Bottom Button Row
+	// Bottom Button Row
 	auto buttonRow = new QHBoxLayout;
 	buttonRow->setContentsMargins(8, 6, 8, 4);
-    buttonRow->setSpacing(8);
-    
-    // Config Button
+	buttonRow->setSpacing(8);
+
+	// Config Button
 	configButton = new QPushButton;
 	configButton->setMinimumHeight(30);
 	configButton->setProperty("themeID", "configIconSmall");
@@ -269,7 +269,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	buttonRow->addWidget(configButton);
 
-    // Aitum Button
+	// Aitum Button
 	auto aitumButton = new QPushButton;
 	aitumButton->setMinimumHeight(30);
 	//aitumButton->setSizePolicy(sp2);
@@ -293,8 +293,60 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 					obs_encoder_set_video(venc, mainVideo);
 			}
 		}
+
+		int idx = 1;
+		while (auto item = mainCanvasLayout->itemAt(idx++)) {
+			auto streamGroup = item->widget();
+			std::string name = streamGroup->objectName().toUtf8().constData();
+			if (name.empty())
+				continue;
+			auto it = outputs.find(name);
+			if (it != outputs.end() && it->second) {
+				auto active = obs_output_active(it->second);
+				foreach(QObject * c, streamGroup->children())
+				{
+					std::string cn = c->metaObject()->className();
+					if (cn == "QPushButton") {
+						auto pb = (QPushButton *)c;
+						if (pb->isChecked() != active) {
+							pb->setChecked(active);
+							outputButtonStyle(pb);
+						}
+					}
+				}
+			}
+		}
+		auto ph = obs_get_proc_handler();
+		struct calldata cd;
+		calldata_init(&cd);
+		idx = 0;
+		while (auto item = verticalCanvasLayout->itemAt(idx++)) {
+			auto streamGroup = item->widget();
+			std::string name = streamGroup->objectName().toUtf8().constData();
+			if (name.empty())
+				continue;
+			obs_output_t *output = nullptr;
+			calldata_set_string(&cd, "name", name.c_str());
+			if (proc_handler_call(ph, "aitum_vertical_get_stream_output", &cd)) {
+				output = (obs_output_t *)calldata_ptr(&cd, "output");
+			}
+			bool active = obs_output_active(output);
+			obs_output_release(output);
+			foreach(QObject * c, streamGroup->children())
+			{
+				std::string cn = c->metaObject()->className();
+				if (cn == "QPushButton") {
+					auto pb = (QPushButton *)c;
+					if (pb->isChecked() != active) {
+						pb->setChecked(active);
+						outputButtonStyle(pb);
+					}
+				}
+			}
+		}
+		calldata_free(&cd);
 	});
-	videoCheckTimer.start(1000);
+	videoCheckTimer.start(500);
 }
 
 MultistreamDock::~MultistreamDock()

@@ -18,6 +18,17 @@ private:
 	QWidget *WizardInfoTikTok();
 	QWidget *WizardInfoFacebook();
 	
+	
+	// Platform icons
+	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
+	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");
+	QIcon platformIconKick = QIcon(":/aitum/media/kick.png");
+	QIcon platformIconTikTok = QIcon(":/aitum/media/tiktok.png");
+	QIcon platformIconTwitter = QIcon(":/aitum/media/twitter.png");
+	QIcon platformIconTrovo = QIcon(":/aitum/media/trovo.png");
+	QIcon platformIconFacebook = QIcon(":/aitum/media/facebook.png");
+	QIcon platformIconUnknown = QIcon(":/aitum/media/unknown.png");
+	
 	QStackedWidget *stackedWidget;
 public:
 	OutputDialog(QDialog *parent);

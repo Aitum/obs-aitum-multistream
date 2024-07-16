@@ -68,7 +68,7 @@ public:
 	void LoadSettings(obs_data_t *settings);
 	void LoadVerticalSettings();
 	void SaveVerticalSettings();
-	void LoadOutputStats();
+	void LoadOutputStats(std::vector<video_t *>* oldVideos);
 	void SetNewerVersion(QString newer_version_available);
 public slots:
 };

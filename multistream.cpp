@@ -248,7 +248,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_data_apply(settings, current_config);
 		configDialog->LoadSettings(settings);
 		configDialog->LoadVerticalSettings();
-		configDialog->LoadOutputStats();
+		configDialog->LoadOutputStats(&oldVideo);
 		configDialog->SetNewerVersion(newer_version_available);
 		configDialog->setResult(QDialog::Rejected);
 		if (configDialog->exec() == QDialog::Accepted) {
@@ -281,6 +281,20 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	mainLayout->addLayout(buttonRow);
 
 	obs_frontend_add_event_callback(frontend_event, this);
+
+	mainVideo = obs_get_video();
+	connect(&videoCheckTimer, &QTimer::timeout, [this] {
+		if (obs_get_video() != mainVideo) {
+			oldVideo.push_back(mainVideo);
+			mainVideo = obs_get_video();
+			for (auto it = outputs.begin(); it != outputs.end(); it++) {
+				auto venc = obs_output_get_video_encoder(it->second);
+				if (venc && !obs_encoder_active(venc))
+					obs_encoder_set_video(venc, mainVideo);
+			}
+		}
+	});
+	videoCheckTimer.start(1000);
 }
 
 MultistreamDock::~MultistreamDock()

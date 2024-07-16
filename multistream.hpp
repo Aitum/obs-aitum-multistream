@@ -6,6 +6,7 @@
 #include <QFrame>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <QTimer>
 
 class OBSBasicSettings;
 
@@ -23,6 +24,10 @@ private:
 	QPushButton *configButton = nullptr;
 
 	QString newer_version_available;
+
+	QTimer videoCheckTimer;
+	video_t *mainVideo = nullptr;
+	std::vector<video_t *> oldVideo;
 
 	std::map<std::string, obs_output_t *> outputs;
 

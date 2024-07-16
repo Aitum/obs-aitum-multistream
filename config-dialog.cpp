@@ -971,7 +971,7 @@ void OBSBasicSettings::RefreshProperties(obs_properties_t *properties, QFormLayo
 static bool obs_encoder_parent_video_loaded = false;
 static video_t *(*obs_encoder_parent_video_wrapper)(const obs_encoder_t *encoder) = nullptr;
 
-void OBSBasicSettings::LoadOutputStats()
+void OBSBasicSettings::LoadOutputStats(std::vector<video_t *> *oldVideos)
 {
 	if (!obs_encoder_parent_video_loaded) {
 		void *dl = os_dlopen("obs");
@@ -1047,6 +1047,8 @@ void OBSBasicSettings::LoadOutputStats()
 			stats += "Vertical Canvas ";
 		} else if (video == obs_get_video()) {
 			stats += "Main Canvas ";
+		} else if (std::find(oldVideos->begin(), oldVideos->end(), video) != oldVideos->end()) {
+			stats += "Old Main Canvas ";
 		} else {
 			if (last_video != video) {
 				video_count++;
@@ -1056,7 +1058,9 @@ void OBSBasicSettings::LoadOutputStats()
 			stats += std::to_string(video_count);
 			stats += " ";
 		}
-		if (encoder) {
+		if (video && std::find(oldVideos->begin(), oldVideos->end(), video) != oldVideos->end()) {
+			stats += obs_output_active(output) ? "Active " : "Inactive ";
+		} else if (encoder) {
 			stats += "(";
 			stats += std::to_string(obs_encoder_get_width(encoder));
 			stats += "x";
@@ -1070,6 +1074,13 @@ void OBSBasicSettings::LoadOutputStats()
 				video_output_get_frame_rate(video) / obs_encoder_get_frame_rate_divisor(encoder), 2);
 			stats += "fps ";
 			stats += obs_encoder_active(encoder) ? "Active " : "Inactive ";
+			if (video) {
+				stats += "skipped frames ";
+				stats += std::to_string(video_output_get_skipped_frames(video));
+				stats += "/";
+				stats += std::to_string(video_output_get_total_frames(video));
+				stats += " ";
+			}
 		} else if (video) {
 			stats += "(";
 			stats += std::to_string(video_output_get_width(video));
@@ -1079,6 +1090,11 @@ void OBSBasicSettings::LoadOutputStats()
 			stats += to_string_with_precision(video_output_get_frame_rate(video), 2);
 			stats += "fps ";
 			stats += video_output_active(video) ? "Active " : "Inactive ";
+			stats += "skipped frames ";
+			stats += std::to_string(video_output_get_skipped_frames(video));
+			stats += "/";
+			stats += std::to_string(video_output_get_total_frames(video));
+			stats += " ";
 		} else {
 			stats += "(";
 			stats += std::to_string(obs_output_get_width(output));
@@ -1086,13 +1102,6 @@ void OBSBasicSettings::LoadOutputStats()
 			stats += std::to_string(obs_output_get_height(output));
 			stats += ") ";
 			stats += obs_output_active(output) ? "Active " : "Inactive ";
-		}
-		if (video) {
-			stats += "skipped frames ";
-			stats += std::to_string(video_output_get_skipped_frames(video));
-			stats += "/";
-			stats += std::to_string(video_output_get_total_frames(video));
-			stats += " ";
 		}
 		stats += obs_output_get_name(output);
 		stats += "(";

@@ -51,7 +51,7 @@ private:
 	// Platform icons
 	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
 	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");
-//	QIcon platformIconKick = QIcon(":/aitum/media/stream.svg");
+	QIcon platformIconKick = QIcon(":/aitum/media/kick.png");
 	QIcon platformIconTikTok = QIcon(":/aitum/media/tiktok.png");
 	QIcon platformIconTwitter = QIcon(":/aitum/media/twitter.png");
 	QIcon platformIconTrovo = QIcon(":/aitum/media/trovo.png");

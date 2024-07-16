@@ -10,5 +10,6 @@
 	<file>media/twitter.png</file>
 	<file>media/unknown.png</file>
 	<file>media/youtube.png</file>
+	<file>media/kick.png</file>
   </qresource>
 </RCC>

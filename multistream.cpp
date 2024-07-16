@@ -113,7 +113,7 @@ QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint) {
 	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
 		return platformIconYouTube;
 	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
-		return platformIconUnknown;
+		return platformIconKick;
 	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
 		return platformIconTikTok;
 	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter

@@ -26,6 +26,7 @@
 
 #include <sstream>
 #include <util/platform.h>
+#include "output-dialog.hpp"
 
 template<typename T> std::string to_string_with_precision(const T a_value, const int n = 6)
 {
@@ -161,10 +162,45 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 		AddServer(mainOutputsLayout, s);
 		obs_data_release(s);
 	});
+	
+	auto addButtonTest = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")) + " Test");
+	addButtonTest->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	connect(addButtonTest, &QPushButton::clicked, [this] {
+		auto outputDialog = new OutputDialog(this);
+		
+		if (outputDialog->exec() == QDialog::Accepted) {
+			// got a result
+			blog(LOG_WARNING, "[Aitum Multistream] output accepted");
+		} else {
+			blog(LOG_WARNING, "[Aitum Multistream] output rejected");
+		}
+		
+		delete outputDialog;
+
+		
+	
+		
+		
+//		if (!settings)
+//			return;
+//		auto outputs = obs_data_get_array(settings, "outputs");
+//		if (!outputs) {
+//			outputs = obs_data_array_create();
+//			obs_data_set_array(settings, "outputs", outputs);
+//		}
+//		auto s = obs_data_create();
+//		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
+//		obs_data_array_push_back(outputs, s);
+//		obs_data_array_release(outputs);
+//		AddServer(mainOutputsLayout, s);
+//		obs_data_release(s);
+	});
 
 	//streaming_title_layout->addWidget(guide_link, 0, Qt::AlignRight);
 	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);
+	streaming_title_layout->addWidget(addButtonTest, 0, Qt::AlignRight);
 
+	
 	mainOutputsLayout->addRow(streaming_title_layout);
 
 	auto serverGroup = new QGroupBox;
@@ -177,9 +213,13 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	serverLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	serverLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
 
-	auto main_title = new QLabel(QString::fromUtf8(obs_module_text("MainOutput")));
-	main_title->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
-	serverLayout->addRow(main_title);
+	auto mainTitle = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasTitle")));
+	mainTitle->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
+	serverLayout->addRow(mainTitle);
+	
+	auto mainDescription = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasDescription")));
+//	mainTitle->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
+	serverLayout->addRow(mainDescription);
 
 	serverGroup->setLayout(serverLayout);
 

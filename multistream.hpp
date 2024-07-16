@@ -7,6 +7,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QString>
 
 class OBSBasicSettings;
 
@@ -40,8 +41,20 @@ private:
 
 	void outputButtonStyle(QPushButton *button);
 
+	QIcon getPlatformFromEndpoint(QString endpoint);
+	
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
+	
+	// Platform icons
+	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
+	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");
+//	QIcon platformIconKick = QIcon(":/aitum/media/stream.svg");
+	QIcon platformIconTikTok = QIcon(":/aitum/media/tiktok.png");
+	QIcon platformIconTwitter = QIcon(":/aitum/media/twitter.png");
+	QIcon platformIconTrovo = QIcon(":/aitum/media/trovo.png");
+	QIcon platformIconFacebook = QIcon(":/aitum/media/facebook.png");
+	QIcon platformIconUnknown = QIcon(":/aitum/media/unknown.png");
 
 	static void frontend_event(enum obs_frontend_event event, void *private_data);
 
@@ -54,5 +67,5 @@ private slots:
 public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
-	void LoadVerticalOutputs();
+	void LoadVerticalOutputs(bool firstLoad = true);
 };

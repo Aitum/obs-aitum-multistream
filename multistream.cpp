@@ -67,7 +67,7 @@ bool obs_module_load(void)
 
 void obs_module_post_load()
 {
-	multistream_dock->LoadVerticalOutputs();
+	multistream_dock->LoadVerticalOutputs(true);
 }
 
 void obs_module_unload()
@@ -105,6 +105,29 @@ void RemoveWidget(QWidget *widget)
 	delete widget;
 }
 
+// Platform icons deciphered from endpoints
+QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint) {
+	
+	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net"))) { // twitch
+		return platformIconTwitch;
+	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
+		return platformIconYouTube;
+	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
+		return platformIconUnknown;
+	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
+		return platformIconTikTok;
+	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
+		return platformIconTwitter;
+	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live/live"))) { // trovo
+		return platformIconTrovo;
+	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
+		return platformIconFacebook;
+	} else { // unknown
+		return platformIconUnknown;
+	}
+		
+}
+
 // Output button styling
 void MultistreamDock::outputButtonStyle(QPushButton *button)
 {
@@ -122,6 +145,7 @@ auto canvasGroupStyle = QString("padding: 16px 0px 0px 0px;"); // Main Canvas, V
 auto outputTitleStyle = QString("QLabel{}");                   // "Built -in stream"
 auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 				.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
+
 
 // For showing warning for no vertical integration
 void showVerticalWarning(QVBoxLayout *verticalLayout)
@@ -174,6 +198,15 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	auto bisHeaderLabel = new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream")));
 	bisHeaderLabel->setStyleSheet(outputTitleStyle);
 
+	// blank because we're not pulling settings through from bis, fix this
+	auto platformIconLabel = new QLabel;
+	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(""));
+//	platformIcon.
+	
+	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	
+	l2->addWidget(platformIconLabel);
+	
 	l2->addWidget(bisHeaderLabel, 1);
 
 	mainStreamButton = new QPushButton;
@@ -258,7 +291,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 				SaveSettings();
 				LoadSettings();
 				configDialog->SaveVerticalSettings();
-				LoadVerticalOutputs();
+				LoadVerticalOutputs(false);
 			} else {
 				current_config = settings;
 			}
@@ -459,6 +492,7 @@ void MultistreamDock::LoadSettings()
 void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 {
 	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
+	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
 	if (vertical) {
 		for (int i = 1; i < verticalCanvasLayout->count(); i++) {
 			auto item = verticalCanvasLayout->itemAt(i);
@@ -482,6 +516,15 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	auto streamLayout = new QVBoxLayout;
 
 	auto l2 = new QHBoxLayout;
+	
+	
+	auto platformIconLabel = new QLabel;
+	auto platformIcon = getPlatformFromEndpoint(endpoint);
+	
+	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	
+	l2->addWidget(platformIconLabel);
+	
 	l2->addWidget(new QLabel(name), 1);
 	auto streamButton = new QPushButton;
 	streamButton->setMinimumHeight(30);
@@ -807,13 +850,15 @@ void MultistreamDock::NewerVersionAvailable(QString version)
 	configButton->setStyleSheet(QString::fromUtf8("background: rgb(192,128,0);"));
 }
 
-void MultistreamDock::LoadVerticalOutputs()
+void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 {
 	auto ph = obs_get_proc_handler();
 	struct calldata cd;
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
-		showVerticalWarning(verticalCanvasLayout); // show warning
+		if (firstLoad) { // only display warning on first load
+			showVerticalWarning(verticalCanvasLayout); // show warning
+		}
 		calldata_free(&cd);
 		return;
 	}

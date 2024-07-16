@@ -51,10 +51,12 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_D
 
 target_sources(${PROJECT_NAME} PRIVATE
   config-dialog.cpp
+  output-dialog.cpp
   multistream.cpp
   file-updater.c
 	resources.qrc
 	config-dialog.hpp
+	output-dialog.hpp
     multistream.hpp
 	file-updater.h)
 

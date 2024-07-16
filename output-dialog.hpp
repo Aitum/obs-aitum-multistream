@@ -1,16 +1,24 @@
 #pragma once
 
-#include <QWizard>
-#include <QWizardPage>
 #include <QDialog>
+#include <QWidget>
+#include <QStackedWidget>
 
-class OutputDialog : public QWizard {
+class OutputDialog : public QDialog {
 	Q_OBJECT
 private:
-	QWizardPage *WizardPage1();
-	QWizardPage *WizardPage2();
-	QWizardPage *WizardPage3();
+	QWidget *WizardServicePage();
 	
+	QWidget *WizardInfoKick();
+	QWidget *WizardInfoYouTube();
+	QWidget *WizardInfoTwitter();
+	QWidget *WizardInfoUnknown();
+	QWidget *WizardInfoTwitch();
+	QWidget *WizardInfoTrovo();
+	QWidget *WizardInfoTikTok();
+	QWidget *WizardInfoFacebook();
+	
+	QStackedWidget *stackedWidget;
 public:
 	OutputDialog(QDialog *parent);
 };

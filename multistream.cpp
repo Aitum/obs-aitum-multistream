@@ -67,7 +67,8 @@ bool obs_module_load(void)
 
 void obs_module_post_load()
 {
-	multistream_dock->LoadVerticalOutputs(true);
+	if (multistream_dock)
+		multistream_dock->LoadVerticalOutputs(true);
 }
 
 void obs_module_unload()
@@ -106,9 +107,11 @@ void RemoveWidget(QWidget *widget)
 }
 
 // Platform icons deciphered from endpoints
-QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint) {
-	
-	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net"))) { // twitch
+QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint)
+{
+
+	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
+	    endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
 		return platformIconTwitch;
 	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
 		return platformIconYouTube;
@@ -118,14 +121,13 @@ QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint) {
 		return platformIconTikTok;
 	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
 		return platformIconTwitter;
-	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live/live"))) { // trovo
+	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
 		return platformIconTrovo;
 	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
 		return platformIconFacebook;
 	} else { // unknown
 		return platformIconUnknown;
 	}
-		
 }
 
 // Output button styling
@@ -141,12 +143,11 @@ void MultistreamDock::outputButtonStyle(QPushButton *button)
 }
 
 // Common styling things here
-auto canvasGroupStyle = QString("padding: 0px 0px 0px 0px;"); // Main Canvas, Vertical Canvas
+auto canvasGroupStyle = QString("padding: 0px 0px 0px 0px;");                          // Main Canvas, Vertical Canvas
 auto canvasGroupHeaderStyle = QString("padding: 0px 0px 0px 0px; font-weight: bold;"); // header of each group
-auto outputTitleStyle = QString("QLabel{}");                   // "Built -in stream"
+auto outputTitleStyle = QString("QLabel{}");                                           // "Built -in stream"
 auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 				.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
-
 
 // For showing warning for no vertical integration
 void showVerticalWarning(QVBoxLayout *verticalLayout)
@@ -184,23 +185,23 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// Group for built in canvas
 	auto mainCanvasGroup = new QGroupBox;
 	mainCanvasGroup->setStyleSheet(canvasGroupStyle);
-	
+
 	mainCanvasLayout = new QVBoxLayout;
 	mainCanvasLayout->setSpacing(4); // between outputs on main canvas
 
 	// Layout for header row
 	auto mainCanvasTitleRowLayout = new QHBoxLayout;
-	
+
 	auto mainCanvasLabel = new QLabel(QString::fromUtf8(obs_module_text("MainCanvas")));
 	mainCanvasLabel->setStyleSheet(canvasGroupHeaderStyle);
 	mainCanvasTitleRowLayout->addWidget(mainCanvasLabel);
-	
+
 	mainCanvasLayout->addLayout(mainCanvasTitleRowLayout);
 
 	// We store the actual outputs here
 	mainCanvasOutputLayout = new QVBoxLayout;
 	mainCanvasOutputLayout->setSpacing(4); // between outputs on main canvas
-	
+
 	auto mainStreamGroup = new QGroupBox;
 	mainStreamGroup->setStyleSheet(outputGroupStyle);
 
@@ -215,9 +216,9 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// blank because we're not pulling settings through from bis, fix this
 	mainPlatformIconLabel = new QLabel;
 	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(""));
-	
+
 	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
-	
+
 	l2->addWidget(mainPlatformIconLabel);
 	l2->addWidget(bisHeaderLabel, 1);
 
@@ -247,7 +248,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	mainStreamGroup->setLayout(mainStreamLayout);
 
 	mainCanvasOutputLayout->addWidget(mainStreamGroup);
-	
+
 	mainCanvasLayout->addLayout(mainCanvasOutputLayout);
 	mainCanvasGroup->setLayout(mainCanvasLayout);
 
@@ -265,19 +266,19 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	// Layout for header row
 	auto verticalCanvasTitleRowLayout = new QHBoxLayout;
-	
+
 	auto verticalCanvasLabel = new QLabel(QString::fromUtf8(obs_module_text("VerticalCanvas")));
 	verticalCanvasLabel->setStyleSheet(canvasGroupHeaderStyle);
 	verticalCanvasTitleRowLayout->addWidget(verticalCanvasLabel);
-	
+
 	verticalCanvasLayout->addLayout(verticalCanvasTitleRowLayout);
-	
+
 	// We store the actual outputs here
 	verticalCanvasOutputLayout = new QVBoxLayout;
 	verticalCanvasOutputLayout->setSpacing(4); // between outputs on vertical canvas
-	
+
 	verticalCanvasLayout->addLayout(verticalCanvasOutputLayout); // Add output layout to parent
-	
+
 	//tl->addWidget(verticalCanvasGroup);
 	QScrollArea *scrollArea = new QScrollArea;
 	scrollArea->setWidget(t);
@@ -362,7 +363,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			auto platformIcon = getPlatformFromEndpoint(url);
 			mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 		}
-		
+
 		int idx = 1;
 		while (auto item = mainCanvasOutputLayout->itemAt(idx++)) {
 			auto streamGroup = item->widget();
@@ -552,15 +553,14 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	auto streamLayout = new QVBoxLayout;
 
 	auto l2 = new QHBoxLayout;
-	
-	
+
 	auto platformIconLabel = new QLabel;
 	auto platformIcon = getPlatformFromEndpoint(endpoint);
-	
+
 	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
-	
+
 	l2->addWidget(platformIconLabel);
-	
+
 	l2->addWidget(new QLabel(name), 1);
 	auto streamButton = new QPushButton;
 	streamButton->setMinimumHeight(30);
@@ -892,7 +892,7 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	struct calldata cd;
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
-		if (firstLoad) { // only display warning on first load
+		if (firstLoad) {                                         // only display warning on first load
 			showVerticalWarning(verticalCanvasOutputLayout); // show warning
 		}
 		calldata_free(&cd);

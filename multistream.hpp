@@ -25,6 +25,8 @@ private:
 	QVBoxLayout *verticalCanvasOutputLayout = nullptr;
 	QPushButton *mainStreamButton = nullptr;
 	QPushButton *configButton = nullptr;
+	QLabel *mainPlatformIconLabel = nullptr;
+	QString mainPlatformUrl;
 
 	QString newer_version_available;
 

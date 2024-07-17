@@ -213,12 +213,12 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	bisHeaderLabel->setStyleSheet(outputTitleStyle);
 
 	// blank because we're not pulling settings through from bis, fix this
-	auto platformIconLabel = new QLabel;
+	mainPlatformIconLabel = new QLabel;
 	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(""));
 	
-	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 	
-	l2->addWidget(platformIconLabel);
+	l2->addWidget(mainPlatformIconLabel);
 	l2->addWidget(bisHeaderLabel, 1);
 
 	mainStreamButton = new QPushButton;
@@ -355,6 +355,14 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			}
 		}
 
+		auto service = obs_frontend_get_streaming_service();
+		auto url = QString::fromUtf8(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL));
+		if (url != mainPlatformUrl) {
+			mainPlatformUrl = url;
+			auto platformIcon = getPlatformFromEndpoint(url);
+			mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+		}
+		
 		int idx = 1;
 		while (auto item = mainCanvasOutputLayout->itemAt(idx++)) {
 			auto streamGroup = item->widget();

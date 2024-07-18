@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QStackedWidget>
 #include <QToolButton>
+#include <QPushButton>
 #include <QString>
 #include "obs-data.h"
 
@@ -35,15 +36,16 @@ private:
 	QIcon platformIconUnknown = QIcon(":/aitum/media/unknown.png");
 	
 	obs_data_array_t *servicesData;
-	
-	QString outputName;
-	QString outputServer;
-	QString outputKey;
-	
+		
 	void resetOutputs();
+	void acceptOutputs();
+	void validateOutputs(QPushButton *confirmButton);
 	obs_data_t *getService(std::string serviceName);
 	
 	QStackedWidget *stackedWidget;
 public:
 	OutputDialog(QDialog *parent);
+	QString outputName;
+	QString outputServer;
+	QString outputKey;
 };

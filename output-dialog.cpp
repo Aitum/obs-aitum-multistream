@@ -22,6 +22,56 @@ void OutputDialog::resetOutputs() {
 	outputKey = QString("");
 }
 
+// For when we're done
+void OutputDialog::acceptOutputs() {
+	accept();
+}
+
+// For validating the current values and then updating the confirm button state
+void OutputDialog::validateOutputs(QPushButton *confirmButton) {
+	
+	if (outputName.isEmpty()) {
+		confirmButton->setEnabled(false);
+	} else if (outputServer.isEmpty()) {
+		confirmButton->setEnabled(false);
+	} else if (outputKey.isEmpty()) {
+		confirmButton->setEnabled(false);
+	} else {
+		confirmButton->setEnabled(true);
+	}
+	
+}
+
+// Helper for generating info QLabels
+QLabel *generateInfoLabel(std::string text) {
+	auto label = new QLabel;
+	label->setTextFormat(Qt::RichText);
+	label->setText(QString::fromUtf8(obs_module_text(text.c_str())));
+	label->setOpenExternalLinks(true);
+	label->setWordWrap(true);
+	label->setAlignment(Qt::AlignTop);
+	
+	return label;
+}
+
+// Helper for generating form QLabels
+QLabel *generateFormLabel(std::string text) {
+	auto label = new QLabel(QString::fromUtf8(obs_module_text(text.c_str())));
+	label->setStyleSheet("font-weight: bold;");
+	
+	return label;
+}
+
+// Helper for generating QPushButtons w/ style
+QPushButton *generateButton(QString text) {
+	auto button = new QPushButton;
+	button->setText(text);
+	button->setStyleSheet("padding: 4px 12px;");
+	button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	
+	return button;
+}
+
 QToolButton *OutputDialog::selectionButton(std::string title, QIcon icon, int selectionStep) {
 	auto button = new QToolButton;
 	
@@ -199,12 +249,15 @@ QWidget *OutputDialog::WizardInfoUnknown() {
 
 QWidget *OutputDialog::WizardInfoTwitch() {
 	auto page = new QWidget(this);
-
 	page->setStyleSheet("padding: 0px; margin: 0px;");
 	
-	auto pageLayout = new QVBoxLayout;
-	pageLayout->setSpacing(16);
+	// Set defaults for this service
+	outputName = QString("Twitch Output");
 	
+
+	// Layout
+	auto pageLayout = new QVBoxLayout;
+	pageLayout->setSpacing(12);
 	
 	// Heading
 	auto title = new QLabel(QString::fromUtf8(obs_module_text("TwitchServiceInfo")));
@@ -212,8 +265,9 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	
 	// Content
 	auto contentLayout = new QVBoxLayout;
-//	auto filler = new QLabel(QString("filler text"));
-//	contentLayout->addWidget(filler);
+	
+	// Confirm button - initialised here so we can set state in form input connects
+	auto confirmButton = generateButton(QString("Create Output"));
 	
 	// Form
 	auto formLayout = new QFormLayout;
@@ -222,20 +276,27 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameTitle = new QLabel(QString::fromUtf8(obs_module_text("OutputName")));
-	outputNameTitle->setStyleSheet("font-weight: bold;");
+	auto outputNameField = new QLineEdit;
+	outputNameField->setText(outputName);
+	outputNameField->setStyleSheet("padding: 4px 8px;");
 	
-	auto outputName = new QLineEdit;
-	outputName->setStyleSheet("padding: 4px 8px;");
-	formLayout->addRow(outputNameTitle, outputName);
+	connect(outputNameField, &QLineEdit::textEdited, [this, outputNameField, confirmButton] {
+		outputName = outputNameField->text();
+		validateOutputs(confirmButton);
+	});
+	
+	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server selection
-	
-	auto serverSelectionTitle = new QLabel(QString::fromUtf8(obs_module_text("TwitchServer")));
-	serverSelectionTitle->setStyleSheet("font-weight: bold;");
 	auto serverSelection = new QComboBox;
 	serverSelection->setMinimumHeight(30);
 	serverSelection->setStyleSheet("padding: 4px 8px;");
+	
+	connect(serverSelection, &QComboBox::currentIndexChanged, [this, serverSelection, confirmButton] {
+		outputServer = serverSelection->currentData().toString();
+		validateOutputs(confirmButton);
+	});
+	
 	auto rawOptions = getService("Twitch");
 	
 	// turn raw options into actual selectable options
@@ -250,33 +311,23 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	}
 	
 	
-	formLayout->addRow(serverSelectionTitle, serverSelection);
+	formLayout->addRow(generateFormLabel("TwitchServer"), serverSelection);
 	
 	// Server info
-	auto serverInfo = new QLabel;
-	serverInfo->setTextFormat(Qt::RichText);
-	serverInfo->setText(QString::fromUtf8(obs_module_text("TwitchServerInfo")));
-	serverInfo->setOpenExternalLinks(true);
-	serverInfo->setWordWrap(true);
-	formLayout->addWidget(serverInfo);
+	formLayout->addWidget(generateInfoLabel("TwitchServerInfo"));
 	
 	// Server key
-	auto outputKeyTitle = new QLabel(QString::fromUtf8(obs_module_text("TwitchStreamKey")));
-	outputNameTitle->setStyleSheet("font-weight: bold;");
+	auto outputKeyField = new QLineEdit;
+	outputKeyField->setStyleSheet("padding: 4px 8px;");
+	connect(outputKeyField, &QLineEdit::textEdited, [this, outputKeyField, confirmButton] {
+		outputKey = outputKeyField->text();
+		validateOutputs(confirmButton);
+	});
 	
-	auto outputKey = new QLineEdit;
-	outputName->setStyleSheet("padding: 4px 8px;");
-	formLayout->addRow(outputKeyTitle, outputKey);
+	formLayout->addRow(generateFormLabel("TwitchStreamKey"), outputKeyField);
 
 	// Server key info
-	auto keyInfo = new QLabel;
-	keyInfo->setTextFormat(Qt::RichText);
-	keyInfo->setText(QString::fromUtf8(obs_module_text("TwitchStreamKeyInfo")));
-	keyInfo->setOpenExternalLinks(true);
-	keyInfo->setWordWrap(true);
-	keyInfo->setAlignment(Qt::AlignTop);
-	formLayout->addWidget(keyInfo);
-	
+	formLayout->addWidget(generateInfoLabel("TwitchStreamKeyInfo"));
 	
 	contentLayout->addLayout(formLayout);
 	
@@ -290,12 +341,8 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	auto controlsLayout = new QHBoxLayout;
 	controlsLayout->setSpacing(12);
 	
-		
 	// back button
-	auto serviceButton = new QPushButton;
-	serviceButton->setText(QString("< Back"));
-	serviceButton->setStyleSheet("padding: 4px 12px;");
-	serviceButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	auto serviceButton = generateButton(QString("< Back"));
 	
 	connect(serviceButton, &QPushButton::clicked, [this] {
 		stackedWidget->setCurrentIndex(0);
@@ -303,17 +350,16 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	});
 	
 	controlsLayout->addWidget(serviceButton, 0);
-	
 	controlsLayout->addStretch(1);
-	// confirm button
-	auto confirmButton = new QPushButton;
-	confirmButton->setEnabled(false);
-	confirmButton->setText(QString("Create Output"));
-	confirmButton->setStyleSheet("padding: 4px 12px;");
-	confirmButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	
+	// confirm button (initialised above so we can set state)
+	validateOutputs(confirmButton);
+	
+	connect(confirmButton, &QPushButton::clicked, [this] {
+		acceptOutputs();
+	});
 	
 	controlsLayout->addWidget(confirmButton, 0);
-
 
 	// Hook it all together
 	pageLayout->addLayout(controlsLayout);

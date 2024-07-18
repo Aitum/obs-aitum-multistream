@@ -173,7 +173,28 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 		
 		if (outputDialog->exec() == QDialog::Accepted) {
 			// got a result
-			blog(LOG_WARNING, "[Aitum Multistream] output accepted");
+			blog(LOG_WARNING, "[Aitum Multistream] output accepted %s %s %s", outputDialog->outputName.toUtf8().constData(), outputDialog->outputServer.toUtf8().constData(), outputDialog->outputKey.toUtf8().constData());
+			
+			// create a new output
+			if (!settings)
+				return;
+			auto outputs = obs_data_get_array(settings, "outputs");
+			if (!outputs) {
+				outputs = obs_data_array_create();
+				obs_data_set_array(settings, "outputs", outputs);
+			}
+			auto s = obs_data_create();
+			
+			// Set the info from the output dialog
+			obs_data_set_string(s, "name", outputDialog->outputName.toUtf8().constData());
+			obs_data_set_string(s, "stream_server", outputDialog->outputServer.toUtf8().constData());
+			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
+
+			obs_data_array_push_back(outputs, s);
+			obs_data_array_release(outputs);
+			AddServer(mainOutputsLayout, s);
+			obs_data_release(s);
+			
 		} else {
 			blog(LOG_WARNING, "[Aitum Multistream] output rejected");
 		}

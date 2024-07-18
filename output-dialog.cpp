@@ -46,8 +46,8 @@ void OutputDialog::validateOutputs(QPushButton *confirmButton) {
 QLabel *generateInfoLabel(std::string text) {
 	auto label = new QLabel;
 	label->setTextFormat(Qt::RichText);
-	label->setText(QString::fromUtf8(obs_module_text(text.c_str())));
 	label->setOpenExternalLinks(true);
+	label->setText(QString::fromUtf8(obs_module_text(text.c_str())));
 	label->setWordWrap(true);
 	label->setAlignment(Qt::AlignTop);
 	
@@ -115,6 +115,9 @@ OutputDialog::OutputDialog(QDialog *parent) : QDialog(parent) {
 	bfree(allData);
 	bfree(servicesPath);
 	bfree(absolutePath);
+	
+	// Blank info
+	resetOutputs();
 	
 	//
 	setModal(true);
@@ -210,13 +213,129 @@ QWidget *OutputDialog::WizardInfoKick() {
 
 QWidget *OutputDialog::WizardInfoYouTube() {
 	auto page = new QWidget(this);
-		
-	auto pageLayout = new QVBoxLayout;
+	page->setStyleSheet("padding: 0px; margin: 0px;");
 	
-	auto title = new QLabel(QString("YouTube Service page"));
+	// Layout
+	auto pageLayout = new QVBoxLayout;
+	pageLayout->setSpacing(12);
+	
+	// Heading
+	auto title = new QLabel(QString::fromUtf8(obs_module_text("YouTubeServiceInfo")));
 	pageLayout->addWidget(title);
 	
+	// Content
+	auto contentLayout = new QVBoxLayout;
+	
+	// Confirm button - initialised here so we can set state in form input connects
+	auto confirmButton = generateButton(QString("Create Output"));
+	
+	// Form
+	auto formLayout = new QFormLayout;
+	formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	formLayout->setSpacing(12);
+	
+	// Output name
+	auto outputNameField = new QLineEdit;
+	outputNameField->setText(QString::fromUtf8(obs_module_text("YouTubeOutput")));
+	outputNameField->setStyleSheet("padding: 4px 8px;");
+	
+	connect(outputNameField, &QLineEdit::textEdited, [this, outputNameField, confirmButton] {
+		outputName = outputNameField->text();
+		validateOutputs(confirmButton);
+	});
+	
+	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
+	
+	// Server selection
+	auto serverSelection = new QComboBox;
+	serverSelection->setMinimumHeight(30);
+	serverSelection->setStyleSheet("padding: 4px 8px;");
+	
+	connect(serverSelection, &QComboBox::currentIndexChanged, [this, serverSelection, confirmButton] {
+		outputServer = serverSelection->currentData().toString();
+		validateOutputs(confirmButton);
+	});
+	
+	// Set default value for server
+	outputServer = serverSelection->currentData().toString();
+	
+	auto rawOptions = getService("YouTube - RTMPS");
+	
+	// turn raw options into actual selectable options
+	if (rawOptions != nullptr) {
+		auto servers = obs_data_get_array(rawOptions, "servers");
+		auto totalServers = obs_data_array_count(servers);
+		
+		for (size_t idx = 0; idx < totalServers; idx++) {
+			auto item = obs_data_array_item(servers, idx);
+			serverSelection->addItem(obs_data_get_string(item, "name"), obs_data_get_string(item, "url"));
+		}
+	}
+	
+	
+	formLayout->addRow(generateFormLabel("YouTubeServer"), serverSelection);
+	
+	// Server info
+	formLayout->addWidget(generateInfoLabel("YouTubeServerInfo"));
+	
+	// Server key
+	auto outputKeyField = new QLineEdit;
+	outputKeyField->setStyleSheet("padding: 4px 8px;");
+	connect(outputKeyField, &QLineEdit::textEdited, [this, outputKeyField, confirmButton] {
+		outputKey = outputKeyField->text();
+		validateOutputs(confirmButton);
+	});
+	
+	formLayout->addRow(generateFormLabel("YouTubeStreamKey"), outputKeyField);
+
+	// Server key info
+	formLayout->addWidget(generateInfoLabel("YouTubeStreamKeyInfo"));
+	
+	contentLayout->addLayout(formLayout);
+	
+	// spacing
+	auto spacer = new QSpacerItem(1, 20, QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
+	contentLayout->addSpacerItem(spacer);
+	
+	pageLayout->addLayout(contentLayout);
+	
+	// Controls
+	auto controlsLayout = new QHBoxLayout;
+	controlsLayout->setSpacing(12);
+	
+	// back button
+	auto serviceButton = generateButton(QString("< Back"));
+	
+	connect(serviceButton, &QPushButton::clicked, [this] {
+		stackedWidget->setCurrentIndex(0);
+		resetOutputs();
+	});
+	
+	controlsLayout->addWidget(serviceButton, 0);
+	controlsLayout->addStretch(1);
+	
+	// confirm button (initialised above so we can set state)
+	connect(confirmButton, &QPushButton::clicked, [this] {
+		acceptOutputs();
+	});
+	
+	controlsLayout->addWidget(confirmButton, 0);
+
+	// Hook it all together
+	pageLayout->addLayout(controlsLayout);
 	page->setLayout(pageLayout);
+	
+	// Defaults for when we're changed to
+	connect(stackedWidget, &QStackedWidget::currentChanged, [this, outputNameField, serverSelection, outputKeyField, confirmButton] {
+		if (stackedWidget->currentIndex() == 2) {
+			outputName = outputNameField->text();
+			outputServer = serverSelection->currentData().toString();
+			outputKey = outputKeyField->text();
+			validateOutputs(confirmButton);
+		}
+	});
+	
 	
 	return page;
 }
@@ -251,10 +370,6 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	auto page = new QWidget(this);
 	page->setStyleSheet("padding: 0px; margin: 0px;");
 	
-	// Set defaults for this service
-	outputName = QString("Twitch Output");
-	
-
 	// Layout
 	auto pageLayout = new QVBoxLayout;
 	pageLayout->setSpacing(12);
@@ -277,7 +392,7 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	
 	// Output name
 	auto outputNameField = new QLineEdit;
-	outputNameField->setText(outputName);
+	outputNameField->setText(QString::fromUtf8(obs_module_text("TwitchOutput")));
 	outputNameField->setStyleSheet("padding: 4px 8px;");
 	
 	connect(outputNameField, &QLineEdit::textEdited, [this, outputNameField, confirmButton] {
@@ -297,6 +412,7 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 		validateOutputs(confirmButton);
 	});
 	
+	
 	auto rawOptions = getService("Twitch");
 	
 	// turn raw options into actual selectable options
@@ -310,6 +426,8 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 		}
 	}
 	
+	// Set default value for server
+	outputServer = serverSelection->currentData().toString();
 	
 	formLayout->addRow(generateFormLabel("TwitchServer"), serverSelection);
 	
@@ -353,8 +471,6 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	controlsLayout->addStretch(1);
 	
 	// confirm button (initialised above so we can set state)
-	validateOutputs(confirmButton);
-	
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
@@ -364,6 +480,17 @@ QWidget *OutputDialog::WizardInfoTwitch() {
 	// Hook it all together
 	pageLayout->addLayout(controlsLayout);
 	page->setLayout(pageLayout);
+	
+	// Defaults for when we're changed to
+	connect(stackedWidget, &QStackedWidget::currentChanged, [this, outputNameField, serverSelection, outputKeyField, confirmButton] {
+		if (stackedWidget->currentIndex() == 5) {
+			blog(LOG_WARNING, "[Aitum Multistream] default outputname %s ", outputNameField->text().toUtf8().constData());
+			outputName = outputNameField->text();
+			outputServer = serverSelection->currentData().toString();
+			outputKey = outputKeyField->text();
+			validateOutputs(confirmButton);
+		}
+	});
 	
 	return page;
 }

@@ -145,36 +145,34 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	streaming_title_layout->addWidget(streaming_title, 0, Qt::AlignLeft);
 	//auto guide_link = new QLabel(QString::fromUtf8("<a href=\"https://l.aitum.tv/vh-streaming-settings\">") + QString::fromUtf8(obs_module_text("ViewGuide")) + QString::fromUtf8("</a>"));
 	//guide_link->setOpenExternalLinks(true);
+//	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
+//	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+//	connect(addButton, &QPushButton::clicked, [this] {
+//		if (!settings)
+//			return;
+//		auto outputs = obs_data_get_array(settings, "outputs");
+//		if (!outputs) {
+//			outputs = obs_data_array_create();
+//			obs_data_set_array(settings, "outputs", outputs);
+//		}
+//		auto s = obs_data_create();
+//		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
+//		obs_data_array_push_back(outputs, s);
+//		obs_data_array_release(outputs);
+//		AddServer(mainOutputsLayout, s);
+//		obs_data_release(s);
+//	});
+	
 	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
-	connect(addButton, &QPushButton::clicked, [this] {
-		if (!settings)
-			return;
-		auto outputs = obs_data_get_array(settings, "outputs");
-		if (!outputs) {
-			outputs = obs_data_array_create();
-			obs_data_set_array(settings, "outputs", outputs);
-		}
-		auto s = obs_data_create();
-		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
-		obs_data_array_push_back(outputs, s);
-		obs_data_array_release(outputs);
-		AddServer(mainOutputsLayout, s);
-		obs_data_release(s);
-	});
 	
-	auto addButtonTest = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")) + " Test");
-	addButtonTest->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
-	connect(addButtonTest, &QPushButton::clicked, [this] {
+	connect(addButton, &QPushButton::clicked, [this] {
 		auto outputDialog = new OutputDialog(this);
 		
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
 		
 		if (outputDialog->exec() == QDialog::Accepted) {
-			// got a result
-			blog(LOG_WARNING, "[Aitum Multistream] output accepted %s %s %s", outputDialog->outputName.toUtf8().constData(), outputDialog->outputServer.toUtf8().constData(), outputDialog->outputKey.toUtf8().constData());
-			
 			// create a new output
 			if (!settings)
 				return;
@@ -195,34 +193,13 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 			AddServer(mainOutputsLayout, s);
 			obs_data_release(s);
 			
-		} else {
-			blog(LOG_WARNING, "[Aitum Multistream] output rejected");
 		}
 		
 		delete outputDialog;
-
-		
-	
-		
-		
-//		if (!settings)
-//			return;
-//		auto outputs = obs_data_get_array(settings, "outputs");
-//		if (!outputs) {
-//			outputs = obs_data_array_create();
-//			obs_data_set_array(settings, "outputs", outputs);
-//		}
-//		auto s = obs_data_create();
-//		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
-//		obs_data_array_push_back(outputs, s);
-//		obs_data_array_release(outputs);
-//		AddServer(mainOutputsLayout, s);
-//		obs_data_release(s);
 	});
 
 	//streaming_title_layout->addWidget(guide_link, 0, Qt::AlignRight);
 	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);
-	streaming_title_layout->addWidget(addButtonTest, 0, Qt::AlignRight);
 
 	
 	mainOutputsLayout->addRow(streaming_title_layout);
@@ -262,16 +239,47 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	streaming_title_layout->addWidget(streaming_title, 0, Qt::AlignLeft);
 	//auto guide_link = new QLabel(QString::fromUtf8("<a href=\"https://l.aitum.tv/vh-streaming-settings\">") + QString::fromUtf8(obs_module_text("ViewGuide")) + QString::fromUtf8("</a>"));
 	//guide_link->setOpenExternalLinks(true);
+//	addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
+//	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+//	connect(addButton, &QPushButton::clicked, [this] {
+//		if (!vertical_outputs)
+//			return;
+//		auto s = obs_data_create();
+//		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
+//		obs_data_array_push_back(vertical_outputs, s);
+//		AddServer(verticalOutputsLayout, s);
+//		obs_data_release(s);
+//	});
+	
 	addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	
+	// Disable button if we don't have vertical
+	if (!vertical_outputs) {
+		addButton->setEnabled(false);
+	}
+	
 	connect(addButton, &QPushButton::clicked, [this] {
-		if (!vertical_outputs)
-			return;
-		auto s = obs_data_create();
-		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
-		obs_data_array_push_back(vertical_outputs, s);
-		AddServer(verticalOutputsLayout, s);
-		obs_data_release(s);
+		auto outputDialog = new OutputDialog(this);
+		
+		outputDialog->setWindowModality(Qt::WindowModal);
+		outputDialog->setModal(true);
+		
+		if (outputDialog->exec() == QDialog::Accepted) {
+			// create a new output
+			if (!vertical_outputs)
+				return;
+			auto s = obs_data_create();
+			obs_data_set_string(s, "name", outputDialog->outputName.toUtf8().constData());
+			obs_data_set_string(s, "stream_server", outputDialog->outputServer.toUtf8().constData());
+			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
+			obs_data_array_push_back(vertical_outputs, s);
+			AddServer(verticalOutputsLayout, s);
+			obs_data_release(s);
+
+		}
+		
+		delete outputDialog;
 	});
 
 	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);

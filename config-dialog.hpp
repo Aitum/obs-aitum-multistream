@@ -35,7 +35,7 @@ private:
 	QIcon GetAccessibilityIcon() const;
 	QIcon GetAdvancedIcon() const;
 
-	void AddServer(QFormLayout *outputsLayout, obs_data_t *settings);
+	void AddServer(QFormLayout *outputsLayout, obs_data_t *settings, obs_data_array_t *outputs);
 	void AddProperty(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings, QFormLayout *layout);
 	void RefreshProperties(obs_properties_t *properties, QFormLayout *layout);
 
@@ -50,6 +50,8 @@ private:
 	QLabel *newVersion;
 
 	QTextEdit *troubleshooterText;
+
+	QPushButton *verticalAddButton;
 
 private slots:
 	void SetGeneralIcon(const QIcon &icon);

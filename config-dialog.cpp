@@ -189,8 +189,8 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
 
 			obs_data_array_push_back(outputs, s);
+			AddServer(mainOutputsLayout, s, outputs);
 			obs_data_array_release(outputs);
-			AddServer(mainOutputsLayout, s);
 			obs_data_release(s);
 			
 		}
@@ -251,15 +251,10 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 //		obs_data_release(s);
 //	});
 	
-	addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
-	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	verticalAddButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
+	verticalAddButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
 	
-	// Disable button if we don't have vertical
-	if (!vertical_outputs) {
-		addButton->setEnabled(false);
-	}
-	
-	connect(addButton, &QPushButton::clicked, [this] {
+	connect(verticalAddButton, &QPushButton::clicked, [this] {
 		auto outputDialog = new OutputDialog(this);
 		
 		outputDialog->setWindowModality(Qt::WindowModal);
@@ -274,7 +269,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 			obs_data_set_string(s, "stream_server", outputDialog->outputServer.toUtf8().constData());
 			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
 			obs_data_array_push_back(vertical_outputs, s);
-			AddServer(verticalOutputsLayout, s);
+			AddServer(verticalOutputsLayout, s, vertical_outputs);
 			obs_data_release(s);
 
 		}
@@ -282,7 +277,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 		delete outputDialog;
 	});
 
-	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);
+	streaming_title_layout->addWidget(verticalAddButton, 0, Qt::AlignRight);
 
 	verticalOutputsLayout->addRow(streaming_title_layout);
 
@@ -417,7 +412,7 @@ void OBSBasicSettings::SetAdvancedIcon(const QIcon &icon)
 	UNUSED_PARAMETER(icon);
 }
 
-void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *settings)
+void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *settings, obs_data_array_t *outputs)
 {
 	auto serverGroup = new QGroupBox;
 	serverGroup->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
@@ -654,10 +649,9 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto removeButton =
 		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
-	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings] {
+	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings, outputs] {
 		outputsLayout->removeWidget(serverGroup);
 		RemoveWidget(serverGroup);
-		auto outputs = obs_data_get_array(this->settings, "outputs");
 		auto count = obs_data_array_count(outputs);
 		for (size_t i = 0; i < count; i++) {
 			auto item = obs_data_array_item(outputs, i);
@@ -668,7 +662,6 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			}
 			obs_data_release(item);
 		}
-		obs_data_array_release(outputs);
 	});
 
 	server_title_layout->addWidget(removeButton, 0, Qt::AlignRight);
@@ -727,6 +720,8 @@ void OBSBasicSettings::LoadVerticalSettings()
 	struct calldata cd;
 	calldata_init(&cd);
 	if (!proc_handler_call(ph, "aitum_vertical_get_stream_settings", &cd)) {
+		// Disable button if we don't have vertical
+		verticalAddButton->setEnabled(false);
 		calldata_free(&cd);
 		return;
 	}
@@ -737,7 +732,7 @@ void OBSBasicSettings::LoadVerticalSettings()
 		vertical_outputs,
 		[](obs_data_t *data, void *param) {
 			auto d = (OBSBasicSettings *)param;
-			d->AddServer(d->verticalOutputsLayout, data);
+			d->AddServer(d->verticalOutputsLayout, data, d->vertical_outputs);
 		},
 		this);
 	calldata_free(&cd);
@@ -768,7 +763,9 @@ void OBSBasicSettings::LoadSettings(obs_data_t *settings)
 		outputs,
 		[](obs_data_t *data, void *param) {
 			auto d = (OBSBasicSettings *)param;
-			d->AddServer(d->mainOutputsLayout, data);
+			auto outputs = obs_data_get_array(d->settings, "outputs");
+			d->AddServer(d->mainOutputsLayout, data, outputs);
+			obs_data_array_release(outputs);
 		},
 		this);
 	obs_data_array_release(outputs);

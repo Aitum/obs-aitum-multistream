@@ -533,7 +533,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
 	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
 	if (vertical) {
-		for (int i = 1; i < verticalCanvasOutputLayout->count(); i++) {
+		for (int i = 0; i < verticalCanvasOutputLayout->count(); i++) {
 			auto item = verticalCanvasOutputLayout->itemAt(i);
 			auto oName = item->widget()->objectName();
 			if (oName == name) {
@@ -904,7 +904,7 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	auto outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 	calldata_free(&cd);
 	auto count = obs_data_array_count(outputs);
-	int idx = 1;
+	int idx = 0;
 	while (auto item = verticalCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
 		auto name = streamGroup->objectName();

@@ -161,6 +161,8 @@ void showVerticalWarning(QVBoxLayout *verticalLayout)
 	auto label = new QLabel(QString::fromUtf8(obs_module_text("NoVerticalWarning")));
 	label->setStyleSheet(QString("padding: 0px;"));
 	label->setWordWrap(true);
+	label->setTextFormat(Qt::RichText);
+	label->setOpenExternalLinks(true);
 	verticalWarningLayout->addWidget(label);
 	verticalWarning->setLayout(verticalWarningLayout);
 

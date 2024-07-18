@@ -200,13 +200,115 @@ QWidget *OutputDialog::WizardServicePage() {
 
 QWidget *OutputDialog::WizardInfoKick() {
 	auto page = new QWidget(this);
-		
-	auto pageLayout = new QVBoxLayout;
+	page->setStyleSheet("padding: 0px; margin: 0px;");
 	
-	auto title = new QLabel(QString("Kick Service page"));
+	// Layout
+	auto pageLayout = new QVBoxLayout;
+	pageLayout->setSpacing(12);
+	
+	// Heading
+	auto title = new QLabel(QString::fromUtf8(obs_module_text("KickServiceInfo")));
+	title->setWordWrap(true);
+	title->setTextFormat(Qt::RichText);
 	pageLayout->addWidget(title);
 	
+	// Content
+	auto contentLayout = new QVBoxLayout;
+	
+	// Confirm button - initialised here so we can set state in form input connects
+	auto confirmButton = generateButton(QString("Create Output"));
+	
+	// Form
+	auto formLayout = new QFormLayout;
+	formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+	formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
+	formLayout->setSpacing(12);
+	
+	// Output name
+	auto outputNameField = new QLineEdit;
+	outputNameField->setText(QString::fromUtf8(obs_module_text("KickOutput")));
+	outputNameField->setStyleSheet("padding: 4px 8px;");
+	
+	connect(outputNameField, &QLineEdit::textEdited, [this, outputNameField, confirmButton] {
+		outputName = outputNameField->text();
+		validateOutputs(confirmButton);
+	});
+	
+	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
+	
+	// Server field
+	auto serverSelection = new QLineEdit;
+	serverSelection->setText("rtmps://fa723fc1b171.global-contribute.live-video.net");
+	serverSelection->setDisabled(true);
+	serverSelection->setStyleSheet("padding: 4px 8px;");
+	
+//	connect(serverSelection, &QLineEdit::textEdited, [this, serverSelection, confirmButton] {
+//		outputServer = serverSelection->text();
+//		validateOutputs(confirmButton);
+//	});
+	
+	formLayout->addRow(generateFormLabel("KickServer"), serverSelection);
+	
+	// Server info
+	formLayout->addWidget(generateInfoLabel("KickServerInfo"));
+	
+	// Server key
+	auto outputKeyField = new QLineEdit;
+	outputKeyField->setStyleSheet("padding: 4px 8px;");
+	connect(outputKeyField, &QLineEdit::textEdited, [this, outputKeyField, confirmButton] {
+		outputKey = outputKeyField->text();
+		validateOutputs(confirmButton);
+	});
+	
+	formLayout->addRow(generateFormLabel("KickStreamKey"), outputKeyField);
+	
+	// Server key info
+	formLayout->addWidget(generateInfoLabel("KickStreamKeyInfo"));
+	
+	contentLayout->addLayout(formLayout);
+	
+	// spacing
+	auto spacer = new QSpacerItem(1, 20, QSizePolicy::Minimum, QSizePolicy::MinimumExpanding);
+	contentLayout->addSpacerItem(spacer);
+	
+	pageLayout->addLayout(contentLayout);
+	
+	// Controls
+	auto controlsLayout = new QHBoxLayout;
+	controlsLayout->setSpacing(12);
+	
+	// back button
+	auto serviceButton = generateButton(QString("< Back"));
+	
+	connect(serviceButton, &QPushButton::clicked, [this] {
+		stackedWidget->setCurrentIndex(0);
+		resetOutputs();
+	});
+	
+	controlsLayout->addWidget(serviceButton, 0);
+	controlsLayout->addStretch(1);
+	
+	// confirm button (initialised above so we can set state)
+	connect(confirmButton, &QPushButton::clicked, [this] {
+		acceptOutputs();
+	});
+	
+	controlsLayout->addWidget(confirmButton, 0);
+	
+	// Hook it all together
+	pageLayout->addLayout(controlsLayout);
 	page->setLayout(pageLayout);
+	
+	// Defaults for when we're changed to
+	connect(stackedWidget, &QStackedWidget::currentChanged, [this, outputNameField, serverSelection, outputKeyField, confirmButton] {
+		if (stackedWidget->currentIndex() == 1) {
+			outputName = outputNameField->text();
+			outputServer = serverSelection->text();
+			outputKey = outputKeyField->text();
+			validateOutputs(confirmButton);
+		}
+	});
+	
 	
 	return page;
 }

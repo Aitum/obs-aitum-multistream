@@ -663,8 +663,34 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			obs_data_release(item);
 		}
 	});
+	
+	auto newEditButton =
+		new QPushButton(QString::fromUtf8("NEW EDIT"));
+//	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
+	connect(newEditButton, &QPushButton::clicked, [this, settings] {
+
+		auto outputDialog = new OutputDialog(this, obs_data_get_string(settings, "name"), obs_data_get_string(settings, "stream_server"), obs_data_get_string(settings, "stream_key"));
+		
+		outputDialog->setWindowModality(Qt::WindowModal);
+		outputDialog->setModal(true);
+		
+		if (outputDialog->exec() == QDialog::Accepted) { // edit an output
+			if (!settings) return;
+			
+			// Set the info from the output dialog
+			obs_data_set_string(settings, "name", outputDialog->outputName.toUtf8().constData());
+			obs_data_set_string(settings, "stream_server", outputDialog->outputServer.toUtf8().constData());
+			obs_data_set_string(settings, "stream_key", outputDialog->outputKey.toUtf8().constData());
+		}
+		
+		delete outputDialog;
+		
+	});
+	
+	
 
 	server_title_layout->addWidget(removeButton, 0, Qt::AlignRight);
+	server_title_layout->addWidget(newEditButton, 0, Qt::AlignRight);
 
 	serverLayout->addRow(server_title_layout);
 

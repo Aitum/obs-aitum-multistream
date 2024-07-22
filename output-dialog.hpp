@@ -6,6 +6,7 @@
 #include <QToolButton>
 #include <QComboBox>
 #include <QPushButton>
+#include <QHBoxLayout>
 #include <QLineEdit>
 #include <QString>
 #include "obs-data.h"
@@ -43,11 +44,13 @@ private:
 	void validateOutputs(QPushButton *confirmButton);
 	
 	// Generators
-	QLineEdit *generateOutputNameField(std::string text, QPushButton *confirmButton);
-	QLineEdit *generateOutputServerField(QPushButton *confirmButton, bool locked);
+	QLineEdit *generateOutputNameField(std::string text, QPushButton *confirmButton, bool edit = false);
+	QLineEdit *generateOutputServerField(QPushButton *confirmButton, bool locked, bool edit = false);
 	QComboBox *generateOutputServerCombo(std::string service, QPushButton *confirmButton, bool edit = false);
-	QLineEdit *generateOutputKeyField(QPushButton *confirmButton);
-
+	QLineEdit *generateOutputKeyField(QPushButton *confirmButton, bool edit = false);
+	QHBoxLayout *generateWizardButtonLayout(QPushButton *confirmButton, QPushButton *serviceButton, bool edit);
+	QPushButton *generateBackButton();
+	
 	obs_data_t *getService(std::string serviceName);
 	
 	QStackedWidget *stackedWidget;

@@ -63,10 +63,14 @@ QLabel *generateFormLabel(std::string text) {
 }
 
 // Helper for generating output name field
-QLineEdit *OutputDialog::generateOutputNameField(std::string text, QPushButton *confirmButton) {
+QLineEdit *OutputDialog::generateOutputNameField(std::string text, QPushButton *confirmButton, bool edit) {
 	auto field = new QLineEdit;
 	field->setText(QString::fromUtf8(obs_module_text(text.c_str())));
 	field->setStyleSheet("padding: 4px 8px;");
+	
+	if (edit) { // edit mode, set field value from output value
+		field->setText(outputName);
+	}
 	
 	connect(field, &QLineEdit::textEdited, [this, field, confirmButton] {
 		outputName = field->text();
@@ -77,10 +81,14 @@ QLineEdit *OutputDialog::generateOutputNameField(std::string text, QPushButton *
 }
 
 // Helper for generating output server field
-QLineEdit *OutputDialog::generateOutputServerField(QPushButton *confirmButton, bool locked) {
+QLineEdit *OutputDialog::generateOutputServerField(QPushButton *confirmButton, bool locked, bool edit) {
 	auto field = new QLineEdit;
 	field->setStyleSheet("padding: 4px 8px;");
 	field->setDisabled(locked);
+	
+	if (edit) { // edit mode, set field value from output value
+		field->setText(outputServer);
+	}
 	
 	if (!locked) {
 		connect(field, &QLineEdit::textEdited, [this, field, confirmButton] {
@@ -134,9 +142,13 @@ QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushBut
 }
 
 // Helper for generating output key field
-QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton) {
+QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton, bool edit) {
 	auto field = new QLineEdit;
 	field->setStyleSheet("padding: 4px 8px;");
+	
+	if (edit) { // edit mode, set field value from output value
+		field->setText(outputKey);
+	}
 	
 	connect(field, &QLineEdit::textEdited, [this, field, confirmButton] {
 		outputKey = field->text();
@@ -146,12 +158,42 @@ QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton) {
 	return field;
 }
 
+// Helper for generating wizard button layout
+QHBoxLayout *OutputDialog::generateWizardButtonLayout(QPushButton *confirmButton, QPushButton *serviceButton, bool edit) {
+	auto layout = new QHBoxLayout;
+	layout->setSpacing(0);
+	layout->setContentsMargins(0,0,0,0);
+	
+	if (!edit && serviceButton != nullptr) { // Not edit mode and we have a service (back) button
+		layout->addWidget(serviceButton, 1);
+		layout->addStretch(1);
+		
+		layout->addWidget(confirmButton, 0, Qt::AlignRight);
+	} else { // edit mode, push the button to the right
+		layout->addWidget(confirmButton, 0, Qt::AlignRight);
+	}
+			
+	return layout;
+}
+
 // Helper for generating QPushButtons w/ style
 QPushButton *generateButton(QString text) {
 	auto button = new QPushButton;
 	button->setText(text);
 	button->setStyleSheet("padding: 4px 12px;");
 	button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	
+	return button;
+}
+
+// Helper for generating back button
+QPushButton *OutputDialog::generateBackButton() {
+	auto button = generateButton(QString("< Back"));
+	
+	connect(button, &QPushButton::clicked, [this] {
+		stackedWidget->setCurrentIndex(0);
+		resetOutputs();
+	});
 	
 	return button;
 }
@@ -365,11 +407,11 @@ QWidget *OutputDialog::WizardInfoKick(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("KickOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("KickOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, true);
+	auto serverSelection = generateOutputServerField(confirmButton, true, edit);
 	serverSelection->setText("rtmps://fa723fc1b171.global-contribute.live-video.net");
 	formLayout->addRow(generateFormLabel("KickServer"), serverSelection);
 	
@@ -377,7 +419,7 @@ QWidget *OutputDialog::WizardInfoKick(bool edit) {
 	formLayout->addWidget(generateInfoLabel("KickServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("KickStreamKey"), outputKeyField);
 	
 	// Server key info
@@ -391,32 +433,19 @@ QWidget *OutputDialog::WizardInfoKick(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
 	
-	controlsLayout->addWidget(confirmButton, 0);
-	
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -429,14 +458,6 @@ QWidget *OutputDialog::WizardInfoKick(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		serverSelection->setText(outputServer);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;
@@ -467,18 +488,18 @@ QWidget *OutputDialog::WizardInfoYouTube(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("YouTubeOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("YouTubeOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server selection
-	auto serverSelection = generateOutputServerCombo("YouTube - RTMPS", confirmButton);
+	auto serverSelection = generateOutputServerCombo("YouTube - RTMPS", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("YouTubeServer"), serverSelection);
 	
 	// Server info
 	formLayout->addWidget(generateInfoLabel("YouTubeServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("YouTubeStreamKey"), outputKeyField);
 
 	// Server key info
@@ -492,32 +513,19 @@ QWidget *OutputDialog::WizardInfoYouTube(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
-	
-	controlsLayout->addWidget(confirmButton, 0);
 
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -531,13 +539,7 @@ QWidget *OutputDialog::WizardInfoYouTube(bool edit) {
 			}
 		});
 	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		outputKeyField->setText(outputKey);
-	}
-	
+		
 	return page;
 }
 
@@ -566,18 +568,18 @@ QWidget *OutputDialog::WizardInfoTwitter(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("TwitterOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("TwitterOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server selection
-	auto serverSelection = generateOutputServerCombo("Twitter", confirmButton);
+	auto serverSelection = generateOutputServerCombo("Twitter", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TwitterServer"), serverSelection);
 	
 	// Server info
 	formLayout->addWidget(generateInfoLabel("TwitterServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TwitterStreamKey"), outputKeyField);
 
 	// Server key info
@@ -591,32 +593,19 @@ QWidget *OutputDialog::WizardInfoTwitter(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
-	
-	controlsLayout->addWidget(confirmButton, 0);
 
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -629,12 +618,6 @@ QWidget *OutputDialog::WizardInfoTwitter(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;
@@ -667,18 +650,18 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("CustomOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("CustomOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, false);
+	auto serverSelection = generateOutputServerField(confirmButton, false, edit);
 	formLayout->addRow(generateFormLabel("CustomServer"), serverSelection);
 	
 	// Server info
 	formLayout->addWidget(generateInfoLabel("CustomServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("CustomStreamKey"), outputKeyField);
 	
 	// Server key info
@@ -692,32 +675,19 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
 	
-	controlsLayout->addWidget(confirmButton, 0);
-	
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -730,13 +700,6 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		serverSelection->setText(outputServer);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;
@@ -767,7 +730,7 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("TwitchOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("TwitchOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server selection
@@ -778,7 +741,7 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 	formLayout->addWidget(generateInfoLabel("TwitchServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TwitchStreamKey"), outputKeyField);
 
 	// Server key info
@@ -792,32 +755,19 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
-	
-	controlsLayout->addWidget(confirmButton, 0);
 
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -831,12 +781,6 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;
@@ -869,11 +813,11 @@ QWidget *OutputDialog::WizardInfoTrovo(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("TrovoOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("TrovoOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, true);
+	auto serverSelection = generateOutputServerField(confirmButton, true, edit);
 	serverSelection->setText("rtmp://livepush.trovo.live/live/");
 
 	
@@ -883,7 +827,7 @@ QWidget *OutputDialog::WizardInfoTrovo(bool edit) {
 	formLayout->addWidget(generateInfoLabel("TrovoServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TrovoStreamKey"), outputKeyField);
 	
 	// Server key info
@@ -897,32 +841,19 @@ QWidget *OutputDialog::WizardInfoTrovo(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
 	
-	controlsLayout->addWidget(confirmButton, 0);
-	
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -935,13 +866,6 @@ QWidget *OutputDialog::WizardInfoTrovo(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		serverSelection->setText(outputServer);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;
@@ -974,18 +898,18 @@ QWidget *OutputDialog::WizardInfoTikTok(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("TikTokOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("TikTokOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, false);
+	auto serverSelection = generateOutputServerField(confirmButton, false, edit);
 	formLayout->addRow(generateFormLabel("TikTokServer"), serverSelection);
 	
 	// Server info
 	formLayout->addWidget(generateInfoLabel("TikTokServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TikTokStreamKey"), outputKeyField);
 
 	// Server key info
@@ -999,32 +923,19 @@ QWidget *OutputDialog::WizardInfoTikTok(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
-	
-	controlsLayout->addWidget(confirmButton, 0);
 
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -1038,14 +949,6 @@ QWidget *OutputDialog::WizardInfoTikTok(bool edit) {
 			}
 		});
 	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		serverSelection->setText(outputServer);
-		outputKeyField->setText(outputKey);
-	}
-
 	
 	return page;
 }
@@ -1077,11 +980,11 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit) {
 	formLayout->setSpacing(12);
 	
 	// Output name
-	auto outputNameField = generateOutputNameField("FacebookOutput", confirmButton);
+	auto outputNameField = generateOutputNameField("FacebookOutput", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, true);
+	auto serverSelection = generateOutputServerField(confirmButton, true, edit);
 	serverSelection->setText("rtmps://rtmp-api.facebook.com:443/rtmp/");
 	
 	formLayout->addRow(generateFormLabel("FacebookServer"), serverSelection);
@@ -1090,7 +993,7 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit) {
 	formLayout->addWidget(generateInfoLabel("FacebookServerInfo"));
 	
 	// Server key
-	auto outputKeyField = generateOutputKeyField(confirmButton);
+	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
 	formLayout->addRow(generateFormLabel("FacebookStreamKey"), outputKeyField);
 	
 	// Server key info
@@ -1104,32 +1007,19 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit) {
 	
 	pageLayout->addLayout(contentLayout);
 	
-	// Controls
-	auto controlsLayout = new QHBoxLayout;
-	controlsLayout->setSpacing(12);
-	
 	// back button
-	if (!edit) {
-		auto serviceButton = generateButton(QString("< Back"));
-		
-		connect(serviceButton, &QPushButton::clicked, [this] {
-			stackedWidget->setCurrentIndex(0);
-			resetOutputs();
-		});
-		
-		controlsLayout->addWidget(serviceButton, 0);
-		controlsLayout->addStretch(1);
-	}
+	auto serviceButton = edit ? nullptr : generateBackButton();
+
+	// Controls layout
+	auto controlsLayout = generateWizardButtonLayout(confirmButton, serviceButton, edit);
 	
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] {
 		acceptOutputs();
 	});
 	
-	controlsLayout->addWidget(confirmButton, 0);
-	
 	// Hook it all together
-	pageLayout->addLayout(controlsLayout);
+	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
 	
 	// Defaults for when we're changed to
@@ -1142,13 +1032,6 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit) {
 				validateOutputs(confirmButton);
 			}
 		});
-	}
-	
-	// Edit changes
-	if (edit) {
-		outputNameField->setText(outputName);
-		serverSelection->setText(outputServer);
-		outputKeyField->setText(outputKey);
 	}
 	
 	return page;

@@ -398,7 +398,7 @@ QWidget *OutputDialog::WizardInfoKick(bool edit) {
 	auto contentLayout = new QVBoxLayout;
 	
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString(edit ? "Save Output" : "Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 	
 	// Form
 	auto formLayout = new QFormLayout;

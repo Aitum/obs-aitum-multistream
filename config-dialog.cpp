@@ -19,6 +19,7 @@
 #include <QCompleter>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QIcon>
 
 #include "obs-module.h"
 #include "version.h"
@@ -38,6 +39,30 @@ template<typename T> std::string to_string_with_precision(const T a_value, const
 
 void RemoveWidget(QWidget *widget);
 void RemoveLayoutItem(QLayoutItem *item);
+
+// Platform icons deciphered from endpoints
+QIcon OBSBasicSettings::getPlatformFromEndpoint(QString endpoint)
+{
+
+	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
+		endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
+		return platformIconTwitch;
+	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
+		return platformIconYouTube;
+	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
+		return platformIconKick;
+	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
+		return platformIconTikTok;
+	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
+		return platformIconTwitter;
+	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
+		return platformIconTrovo;
+	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
+		return platformIconFacebook;
+	} else { // unknown
+		return platformIconUnknown;
+	}
+}
 
 OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 {
@@ -145,23 +170,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	streaming_title_layout->addWidget(streaming_title, 0, Qt::AlignLeft);
 	//auto guide_link = new QLabel(QString::fromUtf8("<a href=\"https://l.aitum.tv/vh-streaming-settings\">") + QString::fromUtf8(obs_module_text("ViewGuide")) + QString::fromUtf8("</a>"));
 	//guide_link->setOpenExternalLinks(true);
-//	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
-//	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
-//	connect(addButton, &QPushButton::clicked, [this] {
-//		if (!settings)
-//			return;
-//		auto outputs = obs_data_get_array(settings, "outputs");
-//		if (!outputs) {
-//			outputs = obs_data_array_create();
-//			obs_data_set_array(settings, "outputs", outputs);
-//		}
-//		auto s = obs_data_create();
-//		obs_data_set_string(s, "name", obs_module_text("Unnamed"));
-//		obs_data_array_push_back(outputs, s);
-//		obs_data_array_release(outputs);
-//		AddServer(mainOutputsLayout, s);
-//		obs_data_release(s);
-//	});
+
 	
 	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
@@ -423,39 +432,28 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			.arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
 
 	auto serverLayout = new QFormLayout;
-	serverLayout->setContentsMargins(9, 2, 9, 9);
+	serverLayout->setContentsMargins(9, 2, 9, 2);
+	
 	serverLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	serverLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
 
+	// Title
 	auto server_title_layout = new QHBoxLayout;
+	
+	auto platformIconLabel = new QLabel;
+	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
+	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	server_title_layout->addWidget(platformIconLabel, 0);
+	
 	auto streaming_title = new QLabel(QString::fromUtf8(obs_data_get_string(settings, "name")));
 	streaming_title->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
-	auto title_stack = new QStackedWidget;
-	title_stack->addWidget(streaming_title);
-	auto title_edit = new QLineEdit;
-	connect(title_edit, &QLineEdit::textChanged,
-		[title_edit, settings] { obs_data_set_string(settings, "name", title_edit->text().toUtf8().constData()); });
-	title_stack->addWidget(title_edit);
-	title_stack->setCurrentWidget(streaming_title);
-	server_title_layout->addWidget(title_stack, 1, Qt::AlignLeft);
+	server_title_layout->addWidget(streaming_title, 1, Qt::AlignLeft);
 
+	// Config Button
 	auto configButton = new QPushButton;
 	configButton->setMinimumHeight(30);
 
-	auto renameButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("Rename")));
-	renameButton->setCheckable(true);
-	connect(renameButton, &QPushButton::clicked, [renameButton, title_stack, title_edit, streaming_title, settings] {
-		if (title_stack->currentWidget() == title_edit) {
-			streaming_title->setText(title_edit->text());
-			title_stack->setCurrentWidget(streaming_title);
-		} else {
-			title_edit->setText(streaming_title->text());
-			title_stack->setCurrentWidget(title_edit);
-		}
-	});
-	//renameButton->setProperty("themeID", "configIconSmall");
-	server_title_layout->addWidget(renameButton, 0, Qt::AlignRight);
-
+	// Advanced settings
 	const bool advanced = obs_data_get_bool(settings, "advanced");
 	auto advancedGroup = new QGroupBox(QString::fromUtf8(obs_frontend_get_locale_string("Advanced")));
 	advancedGroup->setVisible(advanced);
@@ -635,7 +633,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	audioEncoderGroup->setVisible(audioEncoder->currentIndex() > 0);
 	advancedGroupLayout->setRowVisible(audioTrack, audioEncoder->currentIndex() > 0);
 
-	auto advancedButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("Advanced")));
+	auto advancedButton = new QPushButton(QString::fromUtf8(obs_module_text("EditEncoderSettings")));
 	advancedButton->setProperty("themeID", "configIconSmall");
 	advancedButton->setCheckable(true);
 	advancedButton->setChecked(advanced);
@@ -644,10 +642,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		advancedGroup->setVisible(advanced);
 		obs_data_set_bool(settings, "advanced", advanced);
 	});
-	server_title_layout->addWidget(advancedButton, 0, Qt::AlignRight);
 
-	auto removeButton =
-		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));
+	
+	// Remove button
+	auto removeButton = new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
 	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings, outputs] {
 		outputsLayout->removeWidget(serverGroup);
@@ -664,10 +662,12 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		}
 	});
 	
-	auto newEditButton =
-		new QPushButton(QString::fromUtf8("NEW EDIT"));
-//	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
-	connect(newEditButton, &QPushButton::clicked, [this, settings] {
+	
+	// Edit button
+	auto editButton = new QPushButton(QString::fromUtf8(obs_module_text("EditServerSettings")));
+	editButton->setProperty("themeID", "configIconSmall");
+
+	connect(editButton, &QPushButton::clicked, [this, settings] {
 
 		auto outputDialog = new OutputDialog(this, obs_data_get_string(settings, "name"), obs_data_get_string(settings, "stream_server"), obs_data_get_string(settings, "stream_key"));
 		
@@ -681,6 +681,9 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			obs_data_set_string(settings, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(settings, "stream_server", outputDialog->outputServer.toUtf8().constData());
 			obs_data_set_string(settings, "stream_key", outputDialog->outputKey.toUtf8().constData());
+			
+			// Reload
+			LoadSettings(this->settings);
 		}
 		
 		delete outputDialog;
@@ -688,47 +691,17 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	});
 	
 	
-
+	// Buttons to layout
+	server_title_layout->addWidget(editButton, 0, Qt::AlignRight);
+	server_title_layout->addWidget(advancedButton, 0, Qt::AlignRight);
 	server_title_layout->addWidget(removeButton, 0, Qt::AlignRight);
-	server_title_layout->addWidget(newEditButton, 0, Qt::AlignRight);
 
 	serverLayout->addRow(server_title_layout);
 
 	serverLayout->addRow(advancedGroup);
 
-	auto server = new QComboBox;
-	server->setEditable(true);
 
-	server->addItem("rtmps://a.rtmps.youtube.com:443/live2");
-	server->addItem("rtmps://b.rtmps.youtube.com:443/live2?backup=1");
-	server->addItem("rtmp://a.rtmp.youtube.com/live2");
-	server->addItem("rtmp://b.rtmp.youtube.com/live2?backup=1");
-	server->setCurrentText(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
-	connect(server, &QComboBox::currentTextChanged,
-		[server, settings] { obs_data_set_string(settings, "stream_server", server->currentText().toUtf8().constData()); });
-	serverLayout->addRow(QString::fromUtf8(obs_module_text("Server")), server);
-
-	QLayout *subLayout = new QHBoxLayout();
-	auto key = new QLineEdit;
-	key->setEchoMode(QLineEdit::Password);
-	key->setText(QString::fromUtf8(obs_data_get_string(settings, "stream_key")));
-	connect(key, &QLineEdit::textChanged,
-		[key, settings] { obs_data_set_string(settings, "stream_key", key->text().toUtf8().constData()); });
-
-	QPushButton *show = new QPushButton();
-	show->setText(QString::fromUtf8(obs_frontend_get_locale_string("Show")));
-	show->setCheckable(true);
-	show->connect(show, &QAbstractButton::toggled, [=](bool hide) {
-		show->setText(
-			QString::fromUtf8(hide ? obs_frontend_get_locale_string("Hide") : obs_frontend_get_locale_string("Show")));
-		key->setEchoMode(hide ? QLineEdit::Normal : QLineEdit::Password);
-	});
-
-	subLayout->addWidget(key);
-	subLayout->addWidget(show);
-
-	serverLayout->addRow(QString::fromUtf8(obs_module_text("Key")), subLayout);
-
+	
 	serverGroup->setLayout(serverLayout);
 
 	outputsLayout->addRow(serverGroup);

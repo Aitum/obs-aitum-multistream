@@ -45,7 +45,7 @@ private:
 	// Generators
 	QLineEdit *generateOutputNameField(std::string text, QPushButton *confirmButton);
 	QLineEdit *generateOutputServerField(QPushButton *confirmButton, bool locked);
-	QComboBox *generateOutputServerCombo(std::string service, QPushButton *confirmButton);
+	QComboBox *generateOutputServerCombo(std::string service, QPushButton *confirmButton, bool edit = false);
 	QLineEdit *generateOutputKeyField(QPushButton *confirmButton);
 
 	obs_data_t *getService(std::string serviceName);

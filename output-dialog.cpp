@@ -93,16 +93,10 @@ QLineEdit *OutputDialog::generateOutputServerField(QPushButton *confirmButton, b
 }
 
 // Helper for generating QComboBoxes for server selection
-QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushButton *confirmButton) {
+QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushButton *confirmButton, bool edit) {
 	auto combo = new QComboBox;
 	combo->setMinimumHeight(30);
 	combo->setStyleSheet("padding: 4px 8px;");
-	
-	connect(combo, &QComboBox::currentIndexChanged, [this, combo, confirmButton] {
-		outputServer = combo->currentData().toString();
-		validateOutputs(confirmButton);
-	});
-	
 	
 	auto rawOptions = getService(service);
 	
@@ -117,8 +111,24 @@ QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushBut
 		}
 	}
 	
+	// If we're edit, look up the current value for outputServer and try to set the index
+	if (edit) {
+		auto selectionIndex = combo->findData(outputServer);
+//		blog(LOG_WARNING, "[Aitum Multistream] edit selection %i for value %s", selectionIndex, outputServer.toStdString().c_str());
+		if (selectionIndex != -1) {
+			combo->setCurrentIndex(selectionIndex);
+		}
+
+	}
+	
+	// Hook event up after
+	connect(combo, &QComboBox::currentIndexChanged, [this, combo, confirmButton] {
+		outputServer = combo->currentData().toString();
+		validateOutputs(confirmButton);
+	});
+	
 	// Set default value for server
-	outputServer = combo->currentData().toString();
+	//	outputServer = combo->currentData().toString();
 	
 	return combo;
 }
@@ -525,12 +535,6 @@ QWidget *OutputDialog::WizardInfoYouTube(bool edit) {
 	// Edit changes
 	if (edit) {
 		outputNameField->setText(outputName);
-		
-		auto selectionIndex = serverSelection->findData(outputServer);
-		if (selectionIndex != -1) {
-			serverSelection->setCurrentIndex(selectionIndex);
-		}
-
 		outputKeyField->setText(outputKey);
 	}
 	
@@ -630,12 +634,6 @@ QWidget *OutputDialog::WizardInfoTwitter(bool edit) {
 	// Edit changes
 	if (edit) {
 		outputNameField->setText(outputName);
-		
-		auto selectionIndex = serverSelection->findData(outputServer);
-		if (selectionIndex != -1) {
-			serverSelection->setCurrentIndex(selectionIndex);
-		}
-
 		outputKeyField->setText(outputKey);
 	}
 	
@@ -773,7 +771,7 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 	
 	// Server selection
-	auto serverSelection = generateOutputServerCombo("Twitch", confirmButton);
+	auto serverSelection = generateOutputServerCombo("Twitch", confirmButton, edit);
 	formLayout->addRow(generateFormLabel("TwitchServer"), serverSelection);
 	
 	// Server info
@@ -838,12 +836,6 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit) {
 	// Edit changes
 	if (edit) {
 		outputNameField->setText(outputName);
-		
-		auto selectionIndex = serverSelection->findData(outputServer);
-		if (selectionIndex != -1) {
-			serverSelection->setCurrentIndex(selectionIndex);
-		}
-
 		outputKeyField->setText(outputKey);
 	}
 	

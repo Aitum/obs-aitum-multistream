@@ -20,6 +20,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QIcon>
+#include <QTabWidget>
 
 #include "obs-module.h"
 #include "version.h"
@@ -451,15 +452,39 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	// Advanced settings
 	const bool advanced = obs_data_get_bool(settings, "advanced");
-	auto advancedGroup = new QGroupBox(QString::fromUtf8(obs_frontend_get_locale_string("Advanced")));
+	auto advancedGroup = new QGroupBox(QString::fromUtf8(obs_module_text("AdvancedGroupHeader")));
+	advancedGroup->setAlignment(Qt::AlignRight);
+	advancedGroup->setContentsMargins(0, 4, 0, 0);
+	advancedGroup->setStyleSheet("QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top right; padding: 12px 18px 0 0; }"
+								 "QGroupBox { padding-top: 4px; padding-bottom: 0 }");
 	advancedGroup->setVisible(advanced);
-	auto advancedGroupLayout = new QFormLayout;
-	advancedGroup->setLayout(advancedGroupLayout);
 
+	auto advancedGroupLayout = new QVBoxLayout;
+	advancedGroup->setLayout(advancedGroupLayout);
+	
+	// Tab widget
+	auto advancedTabWidget = new QTabWidget;
+	advancedTabWidget->setContentsMargins(0, 0, 0, 0);
+	advancedTabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	
+	auto videoPage = new QWidget;
+	videoPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	videoPage->setStyleSheet("background: pink");
+	auto videoPageLayout = new QFormLayout;
+	videoPage->setLayout(videoPageLayout);
+	
+	auto audioPage = new QWidget;
+	audioPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	audioPage->setStyleSheet("background: pink");
+	auto audioPageLayout = new QFormLayout;
+	audioPage->setLayout(audioPageLayout);
+	
+	
+	// VIDEO ENCODER
 	auto videoEncoder = new QComboBox;
 	videoEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
 	videoEncoder->setCurrentIndex(0);
-	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
+	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
 
 	auto videoEncoderIndex = new QComboBox;
 	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
@@ -470,25 +495,25 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (videoEncoderIndex->currentIndex() >= 0)
 			obs_data_set_int(settings, "video_encoder_index", videoEncoderIndex->currentIndex());
 	});
-	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
+	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
 
 	auto videoEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VideoEncoder")));
 	videoEncoderGroup->setProperty("altColor", QVariant(true));
 	auto videoEncoderGroupLayout = new QFormLayout();
 	videoEncoderGroup->setLayout(videoEncoderGroupLayout);
-	advancedGroupLayout->addRow(videoEncoderGroup);
+	videoPageLayout->addRow(videoEncoderGroup);
 
 	connect(videoEncoder, &QComboBox::currentIndexChanged,
-		[this, serverGroup, advancedGroupLayout, videoEncoder, videoEncoderIndex, videoEncoderGroup,
+		[this, serverGroup, advancedGroupLayout, videoPageLayout, videoEncoder, videoEncoderIndex, videoEncoderGroup,
 		 videoEncoderGroupLayout, settings] {
 			auto encoder_string = videoEncoder->currentData().toString().toUtf8();
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "video_encoder", encoder);
 			if (!encoder || encoder[0] == '\0') {
-				advancedGroupLayout->setRowVisible(videoEncoderIndex, true);
+				videoPageLayout->setRowVisible(videoEncoderIndex, true);
 				videoEncoderGroup->setVisible(false);
 			} else {
-				advancedGroupLayout->setRowVisible(videoEncoderIndex, false);
+				videoPageLayout->setRowVisible(videoEncoderIndex, false);
 				videoEncoderGroup->setVisible(true);
 				auto t = encoder_properties.find(serverGroup);
 				if (t != encoder_properties.end()) {
@@ -538,7 +563,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto audioEncoder = new QComboBox;
 	audioEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
 	audioEncoder->setCurrentIndex(0);
-	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoder")), audioEncoder);
+	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoder")), audioEncoder);
 
 	//"audio_track"
 
@@ -551,7 +576,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (audioTrack->currentIndex() >= 0)
 			obs_data_set_int(settings, "audio_track", audioTrack->currentIndex());
 	});
-	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioTrack")), audioTrack);
+	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioTrack")), audioTrack);
 
 	auto audioEncoderIndex = new QComboBox;
 	for (int i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++) {
@@ -562,27 +587,27 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (audioEncoderIndex->currentIndex() >= 0)
 			obs_data_set_int(settings, "audio_encoder_index", audioEncoderIndex->currentIndex());
 	});
-	advancedGroupLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoderIndex")), audioEncoderIndex);
+	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoderIndex")), audioEncoderIndex);
 
 	auto audioEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("AudioEncoder")));
 	audioEncoderGroup->setProperty("altColor", QVariant(true));
 	auto audioEncoderGroupLayout = new QFormLayout();
 	audioEncoderGroup->setLayout(audioEncoderGroupLayout);
-	advancedGroupLayout->addRow(audioEncoderGroup);
+	audioPageLayout->addRow(audioEncoderGroup);
 
 	connect(audioEncoder, &QComboBox::currentIndexChanged,
-		[this, serverGroup, advancedGroupLayout, audioEncoder, audioEncoderIndex, audioEncoderGroup,
+		[this, serverGroup, advancedGroupLayout, audioPageLayout, audioEncoder, audioEncoderIndex, audioEncoderGroup,
 		 audioEncoderGroupLayout, audioTrack, settings] {
 			auto encoder_string = audioEncoder->currentData().toString().toUtf8();
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "audio_encoder", encoder);
 			if (!encoder || encoder[0] == '\0') {
-				advancedGroupLayout->setRowVisible(audioEncoderIndex, true);
-				advancedGroupLayout->setRowVisible(audioTrack, false);
+				audioPageLayout->setRowVisible(audioEncoderIndex, true);
+				audioPageLayout->setRowVisible(audioTrack, false);
 				audioEncoderGroup->setVisible(false);
 			} else {
-				advancedGroupLayout->setRowVisible(audioEncoderIndex, false);
-				advancedGroupLayout->setRowVisible(audioTrack, true);
+				audioPageLayout->setRowVisible(audioEncoderIndex, false);
+				audioPageLayout->setRowVisible(audioTrack, true);
 				audioEncoderGroup->setVisible(true);
 				auto t = encoder_properties.find(serverGroup);
 				if (t != encoder_properties.end()) {
@@ -627,7 +652,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			audioEncoder->setCurrentIndex(audioEncoder->count() - 1);
 	}
 	audioEncoderGroup->setVisible(audioEncoder->currentIndex() > 0);
-	advancedGroupLayout->setRowVisible(audioTrack, audioEncoder->currentIndex() > 0);
+	audioPageLayout->setRowVisible(audioTrack, audioEncoder->currentIndex() > 0);
 
 	auto advancedButton = new QPushButton(QString::fromUtf8(obs_module_text("EditEncoderSettings")));
 	advancedButton->setProperty("themeID", "configIconSmall");
@@ -639,6 +664,15 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		obs_data_set_bool(settings, "advanced", advanced);
 	});
 
+	// Hook up
+	advancedTabWidget->addTab(videoPage, QString::fromUtf8("video"));
+	advancedTabWidget->addTab(audioPage, QString::fromUtf8("audio"));
+	advancedGroupLayout->addWidget(advancedTabWidget, 1);
+	
+	
+	
+	
+	
 	// Remove button
 	auto removeButton =
 		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));

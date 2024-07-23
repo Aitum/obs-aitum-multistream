@@ -54,7 +54,7 @@ private:
 	QTextEdit *troubleshooterText;
 
 	QPushButton *verticalAddButton;
-	
+
 	// Platform icons
 	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
 	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");
@@ -65,8 +65,6 @@ private:
 	QIcon platformIconFacebook = QIcon(":/aitum/media/facebook.png");
 	QIcon platformIconUnknown = QIcon(":/aitum/media/unknown.png");
 	QIcon getPlatformFromEndpoint(QString endpoint);
-
-
 
 private slots:
 	void SetGeneralIcon(const QIcon &icon);
@@ -85,7 +83,7 @@ public:
 	void LoadSettings(obs_data_t *settings);
 	void LoadVerticalSettings();
 	void SaveVerticalSettings();
-	void LoadOutputStats(std::vector<video_t *>* oldVideos);
+	void LoadOutputStats(std::vector<video_t *> *oldVideos);
 	void SetNewerVersion(QString newer_version_available);
 public slots:
 };

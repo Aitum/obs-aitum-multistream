@@ -46,10 +46,10 @@ private:
 	void outputButtonStyle(QPushButton *button);
 
 	QIcon getPlatformFromEndpoint(QString endpoint);
-	
+
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
-	
+
 	// Platform icons
 	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
 	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");

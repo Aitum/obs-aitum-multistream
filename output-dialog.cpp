@@ -494,7 +494,7 @@ QWidget *OutputDialog::WizardInfoYouTube(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -574,7 +574,7 @@ QWidget *OutputDialog::WizardInfoTwitter(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -656,7 +656,7 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -736,7 +736,7 @@ QWidget *OutputDialog::WizardInfoTwitch(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -820,7 +820,7 @@ QWidget *OutputDialog::WizardInfoTrovo(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -904,7 +904,7 @@ QWidget *OutputDialog::WizardInfoTikTok(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;
@@ -986,7 +986,7 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit)
 	auto contentLayout = new QVBoxLayout;
 
 	// Confirm button - initialised here so we can set state in form input connects
-	auto confirmButton = generateButton(QString("Create Output"));
+	auto confirmButton = generateButton(QString(obs_module_text(edit ? "SaveOutput" : "CreateOutput")));
 
 	// Form
 	auto formLayout = new QFormLayout;

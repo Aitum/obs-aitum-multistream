@@ -454,46 +454,52 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	const bool advanced = obs_data_get_bool(settings, "advanced");
 	auto advancedGroup = new QGroupBox(QString::fromUtf8(obs_module_text("AdvancedGroupHeader")));
 	advancedGroup->setContentsMargins(0, 4, 0, 0);
-	
-	advancedGroup->setStyleSheet("QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top right; padding: 12px 18px 0 0; }"
-								 "QGroupBox { padding-top: 4px; padding-bottom: 0;}");
-	advancedGroup->setVisible(advanced);
+
+	advancedGroup->setProperty("customTitle", QVariant(true));
+	advancedGroup->setStyleSheet(
+		"QGroupBox[customTitle=\"true\"]::title { subcontrol-origin: margin; subcontrol-position: top right; padding: 12px 18px 0 0; }"
+		"QGroupBox[customTitle=\"true\"] { padding-top: 4px; padding-bottom: 0;}");
+	if (!advanced)
+		advancedGroup->setVisible(false);
 
 	auto advancedGroupLayout = new QVBoxLayout;
 	advancedGroup->setLayout(advancedGroupLayout);
-	
+
 	// Tab widget
 	// 1 = bg for active tab + pane, 2 = inactive tabs, 3 = tab text colour, 4 = border colour for pane
-	auto tabStyles = QString("QTabWidget::pane {  background: %1; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; border-top-right-radius: 4px; margin-top: -1px; padding-top: 8px; border: 1px solid %4; } QTabWidget::tab-bar { margin-bottom: 0; padding-bottom: 0; border-color: %4; } QTabBar::tab { color: %3; padding: 10px; margin-bottom: 0; border: 1px solid %4; } QTabBar::tab:selected { background: %1; font-weight: bold; border-bottom: none; } QTabBar::tab:!selected { background: %2; }")
-		.arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb), palette().color(QPalette::ColorRole::Light).name(QColor::HexRgb), palette().color(QPalette::ColorRole::Text).name(QColor::HexRgb), palette().color(QPalette::ColorRole::Light).name(QColor::HexRgb));
-	
+	auto tabStyles =
+		QString("QTabWidget::pane {  background: %1; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; border-top-right-radius: 4px; margin-top: -1px; padding-top: 8px; border: 1px solid %4; } QTabWidget::tab-bar { margin-bottom: 0; padding-bottom: 0; border-color: %4; } QTabBar::tab { color: %3; padding: 10px; margin-bottom: 0; border: 1px solid %4; } QTabBar::tab:selected { background: %1; font-weight: bold; border-bottom: none; } QTabBar::tab:!selected { background: %2; }")
+			.arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb),
+			     palette().color(QPalette::ColorRole::Light).name(QColor::HexRgb),
+			     palette().color(QPalette::ColorRole::Text).name(QColor::HexRgb),
+			     palette().color(QPalette::ColorRole::Light).name(QColor::HexRgb));
+
 	auto advancedTabWidget = new QTabWidget;
 	advancedTabWidget->setContentsMargins(0, 0, 0, 0);
 	advancedTabWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	advancedTabWidget->setStyleSheet(tabStyles);
-//	advancedTabWidget->setStyleSheet("QTabWidget::tab-bar { border: 1px solid gray; }"
-//									 "QTabBar::tab { background: gray; color: white; padding: 10px; }"
-//									 "QTabBar::tab:selected { background: lightgray; }"
-//									 "QTabWidget::pane { border: none; background: pink; }");
-	
-//	auto pageStyle = QString("QWidget[page=\"true\"] { border: 1px solid %1; padding-top: 0; margin-top: 0; }")
-//					.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb));
-//	
+	//	advancedTabWidget->setStyleSheet("QTabWidget::tab-bar { border: 1px solid gray; }"
+	//									 "QTabBar::tab { background: gray; color: white; padding: 10px; }"
+	//									 "QTabBar::tab:selected { background: lightgray; }"
+	//									 "QTabWidget::pane { border: none; background: pink; }");
+
+	//	auto pageStyle = QString("QWidget[page=\"true\"] { border: 1px solid %1; padding-top: 0; margin-top: 0; }")
+	//					.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb));
+	//
 	auto videoPage = new QWidget;
 	videoPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-//	videoPage->setStyleSheet(pageStyle);
-//	videoPage->setProperty("page", true);
+	//	videoPage->setStyleSheet(pageStyle);
+	//	videoPage->setProperty("page", true);
 	auto videoPageLayout = new QFormLayout;
 	videoPage->setLayout(videoPageLayout);
-	
+
 	auto audioPage = new QWidget;
 	audioPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-//	audioPage->setStyleSheet(pageStyle);
-//	audioPage->setProperty("page", true);
+	//	audioPage->setStyleSheet(pageStyle);
+	//	audioPage->setProperty("page", true);
 	auto audioPageLayout = new QFormLayout;
 	audioPage->setLayout(audioPageLayout);
-	
-	
+
 	// VIDEO ENCODER
 	auto videoEncoder = new QComboBox;
 	videoEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
@@ -517,9 +523,100 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	videoEncoderGroup->setLayout(videoEncoderGroupLayout);
 	videoPageLayout->addRow(videoEncoderGroup);
 
+	const bool main = outputsLayout == mainOutputsLayout;
+	if (main) {
+		struct obs_video_info ovi;
+		obs_get_video_info(&ovi);
+		double fps = ovi.fps_den > 0 ? (double)ovi.fps_num / (double)ovi.fps_den : 0.0;
+		auto fpsDivisor = new QComboBox;
+		auto frd = obs_data_get_int(settings, "frame_rate_divisor");
+		for (int i = 1; i <= 10; i++) {
+			if (i == 1) {
+				fpsDivisor->addItem(
+					QString::number(fps, 'g', 3) + " " + QString::fromUtf8(obs_module_text("Original")), i);
+				fpsDivisor->setCurrentIndex(0);
+			} else {
+				fpsDivisor->addItem(QString::number(fps / i, 'g', 3), i);
+				if (frd == i) {
+					fpsDivisor->setCurrentIndex(fpsDivisor->count() - 1);
+				}
+			}
+		}
+
+		videoEncoderGroupLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.FPS")),
+						fpsDivisor);
+		//obs_encoder_get_frame_rate_divisor
+
+		auto scale = new QGroupBox(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Output.Adv.Rescale")));
+		scale->setCheckable(true);
+		scale->setChecked(obs_data_get_bool(settings, "scale"));
+
+		connect(scale, &QGroupBox::toggled,
+			[scale, settings] { obs_data_set_bool(settings, "scale", scale->isChecked()); });
+
+		auto scaleLayout = new QFormLayout();
+		scale->setLayout(scaleLayout);
+
+		auto downscale = new QComboBox;
+
+		auto downscale_type = obs_data_get_int(settings, "scale_type");
+		downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Output.Adv.Rescale.Disabled")),
+				   OBS_SCALE_DISABLE);
+		downscale->setCurrentIndex(0);
+		downscale->addItem(
+			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bilinear")),
+			OBS_SCALE_BILINEAR);
+		if (downscale_type == OBS_SCALE_BILINEAR)
+			downscale->setCurrentIndex(1);
+		downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Area")),
+				   OBS_SCALE_AREA);
+		if (downscale_type == OBS_SCALE_AREA)
+			downscale->setCurrentIndex(2);
+		downscale->addItem(
+			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bicubic")),
+			OBS_SCALE_BICUBIC);
+		if (downscale_type == OBS_SCALE_BICUBIC)
+			downscale->setCurrentIndex(3);
+		downscale->addItem(
+			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Lanczos")),
+			OBS_SCALE_LANCZOS);
+		if (downscale_type == OBS_SCALE_LANCZOS)
+			downscale->setCurrentIndex(4);
+
+		connect(downscale, &QComboBox::currentIndexChanged,
+			[downscale, settings] { obs_data_set_int(settings, "scale_type", downscale->currentData().toInt()); });
+
+		scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter")),
+				    downscale);
+
+		auto resolution = new QComboBox;
+		resolution->setEditable(true);
+		resolution->addItem("1280x720");
+		resolution->addItem("1920x1080");
+		resolution->addItem("2560x1440");
+		resolution->setCurrentText(QString::number(obs_data_get_int(settings, "width")) + "x" +
+					   QString::number(obs_data_get_int(settings, "height")));
+		if (resolution->currentText() == "0x0")
+			resolution->setCurrentText(QString::number(ovi.output_width) + "x" + QString::number(ovi.output_height));
+
+		connect(resolution, &QComboBox::currentTextChanged, [settings, resolution] {
+			const auto res = resolution->currentText();
+			uint32_t width, height;
+			if (sscanf(res.toUtf8().constData(), "%dx%d", &width, &height) == 2 && width > 0 && height > 0) {
+				obs_data_set_int(settings, "width", width);
+				obs_data_set_int(settings, "height", height);
+			}
+		});
+
+		scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.ScaledResolution")),
+				    resolution);
+
+		videoEncoderGroupLayout->addRow(scale);
+	}
+
 	connect(videoEncoder, &QComboBox::currentIndexChanged,
 		[this, serverGroup, advancedGroupLayout, videoPageLayout, videoEncoder, videoEncoderIndex, videoEncoderGroup,
-		 videoEncoderGroupLayout, settings] {
+		 videoEncoderGroupLayout, settings, videoPage, main] {
 			auto encoder_string = videoEncoder->currentData().toString().toUtf8();
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "video_encoder", encoder);
@@ -528,13 +625,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				videoEncoderGroup->setVisible(false);
 			} else {
 				videoPageLayout->setRowVisible(videoEncoderIndex, false);
-				videoEncoderGroup->setVisible(true);
+				if (!videoEncoderGroup->isVisibleTo(videoPage))
+					videoEncoderGroup->setVisible(true);
 				auto t = encoder_properties.find(serverGroup);
 				if (t != encoder_properties.end()) {
 					obs_properties_destroy(t->second);
 					encoder_properties.erase(t);
 				}
-				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= 0; i--) {
+				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= (main ? 2 : 0); i--) {
 					videoEncoderGroupLayout->removeRow(i);
 				}
 				//auto stream_encoder_settings = obs_encoder_defaults(encoder);
@@ -572,7 +670,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (strcmp(type, current_type) == 0)
 			videoEncoder->setCurrentIndex(videoEncoder->count() - 1);
 	}
-	videoEncoderGroup->setVisible(advanced && videoEncoder->currentIndex() > 0);
+	if (!advanced || videoEncoder->currentIndex() <= 0)
+		videoEncoderGroup->setVisible(false);
 
 	auto audioEncoder = new QComboBox;
 	audioEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
@@ -611,7 +710,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	connect(audioEncoder, &QComboBox::currentIndexChanged,
 		[this, serverGroup, advancedGroupLayout, audioPageLayout, audioEncoder, audioEncoderIndex, audioEncoderGroup,
-		 audioEncoderGroupLayout, audioTrack, settings] {
+		 audioEncoderGroupLayout, audioTrack, settings, audioPage] {
 			auto encoder_string = audioEncoder->currentData().toString().toUtf8();
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "audio_encoder", encoder);
@@ -622,7 +721,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			} else {
 				audioPageLayout->setRowVisible(audioEncoderIndex, false);
 				audioPageLayout->setRowVisible(audioTrack, true);
-				audioEncoderGroup->setVisible(true);
+				if (!audioEncoderGroup->isVisibleTo(audioPage))
+					audioEncoderGroup->setVisible(true);
 				auto t = encoder_properties.find(serverGroup);
 				if (t != encoder_properties.end()) {
 					obs_properties_destroy(t->second);
@@ -665,7 +765,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (strcmp(type, current_type) == 0)
 			audioEncoder->setCurrentIndex(audioEncoder->count() - 1);
 	}
-	audioEncoderGroup->setVisible(audioEncoder->currentIndex() > 0);
+	if (audioEncoder->currentIndex() <= 0)
+		audioEncoderGroup->setVisible(false);
 	audioPageLayout->setRowVisible(audioTrack, audioEncoder->currentIndex() > 0);
 
 	auto advancedButton = new QPushButton(QString::fromUtf8(obs_module_text("EditEncoderSettings")));
@@ -682,11 +783,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	advancedTabWidget->addTab(videoPage, QString::fromUtf8(obs_module_text("VideoEncoderSettings")));
 	advancedTabWidget->addTab(audioPage, QString::fromUtf8(obs_module_text("AudioEncoderSettings")));
 	advancedGroupLayout->addWidget(advancedTabWidget, 1);
-	
-	
-	
-	
-	
+
 	// Remove button
 	auto removeButton =
 		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));

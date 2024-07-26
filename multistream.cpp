@@ -12,6 +12,8 @@
 #include <QVBoxLayout>
 #include <util/config-file.h>
 #include <util/platform.h>
+#include "config-utils.hpp"
+
 extern "C" {
 #include "file-updater.h"
 }
@@ -106,30 +108,6 @@ void RemoveWidget(QWidget *widget)
 	delete widget;
 }
 
-// Platform icons deciphered from endpoints
-QIcon MultistreamDock::getPlatformFromEndpoint(QString endpoint)
-{
-
-	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
-	    endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
-		return platformIconTwitch;
-	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
-		return platformIconYouTube;
-	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
-		return platformIconKick;
-	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
-		return platformIconTikTok;
-	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
-		return platformIconTwitter;
-	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
-		return platformIconTrovo;
-	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
-		return platformIconFacebook;
-	} else { // unknown
-		return platformIconUnknown;
-	}
-}
-
 // Output button styling
 void MultistreamDock::outputButtonStyle(QPushButton *button)
 {
@@ -217,7 +195,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	// blank because we're not pulling settings through from bis, fix this
 	mainPlatformIconLabel = new QLabel;
-	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(""));
+	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(""));
 
 	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 
@@ -362,7 +340,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		auto url = QString::fromUtf8(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL));
 		if (url != mainPlatformUrl) {
 			mainPlatformUrl = url;
-			auto platformIcon = getPlatformFromEndpoint(url);
+			auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(url);
 			mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 		}
 
@@ -572,7 +550,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	auto l2 = new QHBoxLayout;
 
 	auto platformIconLabel = new QLabel;
-	auto platformIcon = getPlatformFromEndpoint(endpoint);
+	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(endpoint);
 
 	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 

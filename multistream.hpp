@@ -48,20 +48,9 @@ private:
 	void storeMainStreamEncoders();
 	QStringList mainEncoderDescriptions = QStringList(MAX_OUTPUT_VIDEO_ENCODERS);
 
-	QIcon getPlatformFromEndpoint(QString endpoint);
-
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
 
-	// Platform icons
-	QIcon platformIconTwitch = QIcon(":/aitum/media/twitch.png");
-	QIcon platformIconYouTube = QIcon(":/aitum/media/youtube.png");
-	QIcon platformIconKick = QIcon(":/aitum/media/kick.png");
-	QIcon platformIconTikTok = QIcon(":/aitum/media/tiktok.png");
-	QIcon platformIconTwitter = QIcon(":/aitum/media/twitter.png");
-	QIcon platformIconTrovo = QIcon(":/aitum/media/trovo.png");
-	QIcon platformIconFacebook = QIcon(":/aitum/media/facebook.png");
-	QIcon platformIconUnknown = QIcon(":/aitum/media/unknown.png");
 
 	static void frontend_event(enum obs_frontend_event event, void *private_data);
 

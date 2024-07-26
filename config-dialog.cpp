@@ -29,6 +29,7 @@
 #include <sstream>
 #include <util/platform.h>
 #include "output-dialog.hpp"
+#include "config-utils.hpp"
 
 template<typename T> std::string to_string_with_precision(const T a_value, const int n = 6)
 {
@@ -40,30 +41,6 @@ template<typename T> std::string to_string_with_precision(const T a_value, const
 
 void RemoveWidget(QWidget *widget);
 void RemoveLayoutItem(QLayoutItem *item);
-
-// Platform icons deciphered from endpoints
-QIcon OBSBasicSettings::getPlatformFromEndpoint(QString endpoint)
-{
-
-	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
-	    endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
-		return platformIconTwitch;
-	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
-		return platformIconYouTube;
-	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
-		return platformIconKick;
-	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
-		return platformIconTikTok;
-	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
-		return platformIconTwitter;
-	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
-		return platformIconTrovo;
-	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
-		return platformIconFacebook;
-	} else { // unknown
-		return platformIconUnknown;
-	}
-}
 
 OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 {
@@ -438,7 +415,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto server_title_layout = new QHBoxLayout;
 
 	auto platformIconLabel = new QLabel;
-	auto platformIcon = getPlatformFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
+	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
 	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 	server_title_layout->addWidget(platformIconLabel, 0);
 

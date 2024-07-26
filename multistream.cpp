@@ -306,7 +306,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	QPushButton::connect(configButton, &QPushButton::clicked, [this] {
 		if (!configDialog)
 			configDialog = new OBSBasicSettings((QMainWindow *)obs_frontend_get_main_window());
-
+		configDialog->mainEncoderDescriptions = mainEncoderDescriptions;
 		auto settings = obs_data_create();
 		if (current_config)
 			obs_data_apply(settings, current_config);
@@ -366,9 +366,24 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 		}
 
-		int idx = 1;
+		int idx = 0;
 		while (auto item = mainCanvasOutputLayout->itemAt(idx++)) {
 			auto streamGroup = item->widget();
+			if (idx == 1) {
+				auto active = obs_frontend_streaming_active();
+				foreach(QObject * c, streamGroup->children())
+				{
+					std::string cn = c->metaObject()->className();
+					if (cn == "QPushButton") {
+						auto pb = (QPushButton *)c;
+						if (pb->isChecked() != active) {
+							pb->setChecked(active);
+							outputButtonStyle(pb);
+						}
+					}
+				}
+				continue;
+			}
 			std::string name = streamGroup->objectName().toUtf8().constData();
 			if (name.empty())
 				continue;
@@ -439,8 +454,8 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 		md->mainStreamButton->setChecked(true);
 		md->outputButtonStyle(md->mainStreamButton);
-
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
+		md->storeMainStreamEncoders();
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
 		md->outputButtonStyle(md->mainStreamButton);
@@ -932,4 +947,36 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 		},
 		this);
 	obs_data_array_release(outputs);
+}
+
+void MultistreamDock::storeMainStreamEncoders()
+{
+	struct obs_video_info ovi = {0};
+	obs_get_video_info(&ovi);
+	double fps = ovi.fps_den > 0 ? (double)ovi.fps_num / (double)ovi.fps_den : 0.0;
+	auto output = obs_frontend_get_streaming_output();
+	bool found = false;
+	for (auto i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+		auto encoder = obs_output_get_video_encoder2(output, i);
+		if (encoder) {
+			found = true;
+			mainEncoderDescriptions[i] = QString::number(obs_encoder_get_width(encoder)) + "x" +
+						     QString::number(obs_encoder_get_height(encoder));
+			auto divisor = obs_encoder_get_frame_rate_divisor(encoder);
+			if (divisor > 0)
+				mainEncoderDescriptions[i] +=
+					QString::fromUtf8(" ") + QString::number(fps / divisor, 'g', 4) + QString::fromUtf8("fps");
+
+			auto settings = obs_encoder_get_settings(encoder);
+			auto bitrate = settings ? obs_data_get_int(settings, "bitrate") : 0;
+			if (bitrate > 0)
+				mainEncoderDescriptions[i] +=
+					QString::fromUtf8(" ") + QString::number(bitrate) + QString::fromUtf8("Kbps");
+			obs_data_release(settings);
+
+		} else if (found && !mainEncoderDescriptions[i].isEmpty()) {
+			mainEncoderDescriptions[i] = "";
+		}
+	}
+	obs_output_release(output);
 }

@@ -45,6 +45,9 @@ private:
 
 	void outputButtonStyle(QPushButton *button);
 
+	void storeMainStreamEncoders();
+	QStringList mainEncoderDescriptions = QStringList(MAX_OUTPUT_VIDEO_ENCODERS);
+
 	QIcon getPlatformFromEndpoint(QString endpoint);
 
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");

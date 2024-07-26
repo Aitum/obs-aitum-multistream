@@ -508,7 +508,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	auto videoEncoderIndex = new QComboBox;
 	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
-		videoEncoderIndex->addItem(QString::number(i + 1));
+		videoEncoderIndex->addItem(QString::number(i + 1) + " " + mainEncoderDescriptions[i]);
 	}
 	videoEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "video_encoder_index"));
 	connect(videoEncoderIndex, &QComboBox::currentIndexChanged, [videoEncoderIndex, settings] {

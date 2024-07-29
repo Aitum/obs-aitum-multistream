@@ -288,7 +288,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		if (current_config)
 			obs_data_apply(settings, current_config);
 		configDialog->LoadSettings(settings);
-		configDialog->LoadVerticalSettings();
+		configDialog->LoadVerticalSettings(true);
 		configDialog->LoadOutputStats(&oldVideo);
 		configDialog->SetNewerVersion(newer_version_available);
 		configDialog->setResult(QDialog::Rejected);

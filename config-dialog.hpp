@@ -75,7 +75,7 @@ public:
 	~OBSBasicSettings();
 
 	void LoadSettings(obs_data_t *settings);
-	void LoadVerticalSettings();
+	void LoadVerticalSettings(bool load);
 	void SaveVerticalSettings();
 	void LoadOutputStats(std::vector<video_t *> *oldVideos);
 	void SetNewerVersion(QString newer_version_available);

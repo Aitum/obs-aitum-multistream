@@ -54,6 +54,9 @@ private:
 	QTextEdit *troubleshooterText;
 
 	QPushButton *verticalAddButton;
+	QToolButton *generalMainButton;
+	QToolButton *generalVerticalButton;
+	QToolButton *generalHelpButton;
 
 private slots:
 	void SetGeneralIcon(const QIcon &icon);

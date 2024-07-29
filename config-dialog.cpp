@@ -90,36 +90,37 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	QWidget *generalPage = new QWidget;
 	auto generalPageLayout = new QVBoxLayout;
 	generalPage->setLayout(generalPageLayout);
-	
+
 	auto infoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("WelcomeTitle")));
 	infoBox->setStyleSheet("padding-top: 12px");
 	auto infoLayout = new QVBoxLayout;
 	infoBox->setLayout(infoLayout);
-	
+
 	auto infoLabel = new QLabel(QString::fromUtf8(obs_module_text("WelcomeText")));
 	infoLabel->setWordWrap(true);
 	infoLayout->addWidget(infoLabel, 1);
-	
+
 	auto buttonGroupBox = new QWidget();
 	auto buttonLayout = new QHBoxLayout;
 	buttonLayout->setSpacing(8);
 	buttonLayout->setAlignment(Qt::AlignCenter);
-	
-	auto mainButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsMainOutputsButton")), QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
-	auto verticalButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsVerticalOutputsButton")), QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
-	auto helpButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsHelpButton")), main_window->property("defaultIcon").value<QIcon>());
-	
-	buttonLayout->addWidget(mainButton, 0);
-	buttonLayout->addWidget(verticalButton, 0);
-	buttonLayout->addWidget(helpButton, 0);
-	
+
+	generalMainButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsMainOutputsButton")),
+							    QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+	generalVerticalButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsVerticalOutputsButton")),
+								QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+	generalHelpButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsHelpButton")),
+							    main_window->property("defaultIcon").value<QIcon>());
+
+	buttonLayout->addWidget(generalMainButton, 0);
+	buttonLayout->addWidget(generalVerticalButton, 0);
+	buttonLayout->addWidget(generalHelpButton, 0);
+
 	buttonGroupBox->setLayout(buttonLayout);
-	
+
 	generalPageLayout->addWidget(infoBox, 0);
 	generalPageLayout->addWidget(buttonGroupBox, 1);
-	
-	
-	
+
 	QScrollArea *scrollArea = new QScrollArea;
 	scrollArea->setWidget(generalPage);
 	scrollArea->setWidgetResizable(true);
@@ -335,19 +336,13 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	vlayout->addLayout(contentLayout);
 	vlayout->addLayout(bottomLayout);
 	setLayout(vlayout);
-	
+
 	// Button connects for general page, clean this up in the future when we abstract pages
-	connect(mainButton, &QPushButton::clicked, [this] {
-		listWidget->setCurrentRow(1);
-	});
-	
-	connect(verticalButton, &QPushButton::clicked, [this] {
-		listWidget->setCurrentRow(2);
-	});
-	
-	connect(helpButton, &QPushButton::clicked, [this] {
-		listWidget->setCurrentRow(listWidget->count() - 1);
-	});
+	connect(generalMainButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(1); });
+
+	connect(generalVerticalButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(2); });
+
+	connect(generalHelpButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(listWidget->count() - 1); });
 }
 
 OBSBasicSettings::~OBSBasicSettings()
@@ -407,6 +402,8 @@ void OBSBasicSettings::SetStreamIcon(const QIcon &icon)
 {
 	listWidget->item(1)->setIcon(icon);
 	listWidget->item(2)->setIcon(icon);
+	generalVerticalButton->setIcon(icon);
+	generalMainButton->setIcon(icon);
 }
 
 void OBSBasicSettings::SetOutputIcon(const QIcon &icon)

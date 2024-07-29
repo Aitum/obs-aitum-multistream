@@ -58,6 +58,12 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	listWidget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
 	listWidget->setMaximumWidth(180);
 	QListWidgetItem *listwidgetitem = new QListWidgetItem(listWidget);
+	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/general.svg")));
+	//listwidgetitem->setProperty("themeID", QVariant(QString::fromUtf8("configIconSmall")));
+	//cogsIcon
+	listwidgetitem->setText(QString::fromUtf8(obs_module_text("General")));
+
+	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("MainCanvas")));
 
@@ -81,12 +87,20 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	settingsPages->setFrameShape(QFrame::NoFrame);
 	settingsPages->setLineWidth(0);
 
+	QWidget *generalPage = new QWidget;
+	QScrollArea *scrollArea = new QScrollArea;
+	scrollArea->setWidget(generalPage);
+	scrollArea->setWidgetResizable(true);
+	scrollArea->setLineWidth(0);
+	scrollArea->setFrameShape(QFrame::NoFrame);
+	settingsPages->addWidget(scrollArea);
+
 	auto mainOutputsPage = new QGroupBox;
 	mainOutputsPage->setProperty("customTitle", QVariant(true));
 	mainOutputsPage->setStyleSheet(QString("QGroupBox[customTitle=\"true\"]{ padding-top: 4px;}"));
 	mainOutputsPage->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
-	QScrollArea *scrollArea = new QScrollArea;
+	scrollArea = new QScrollArea;
 	scrollArea->setWidget(mainOutputsPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
@@ -282,7 +296,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	contentLayout->addWidget(settingsPages, 1);
 
 	listWidget->connect(listWidget, &QListWidget::currentRowChanged, settingsPages, &QStackedWidget::setCurrentIndex);
-	listWidget->setCurrentRow(0);
+	listWidget->setCurrentRow(1);
 
 	QVBoxLayout *vlayout = new QVBoxLayout;
 	vlayout->setContentsMargins(11, 11, 11, 11);
@@ -341,18 +355,19 @@ QIcon OBSBasicSettings::GetAdvancedIcon() const
 
 void OBSBasicSettings::SetGeneralIcon(const QIcon &icon)
 {
-	UNUSED_PARAMETER(icon);
+	listWidget->item(0)->setIcon(icon);
 }
 
 void OBSBasicSettings::SetStreamIcon(const QIcon &icon)
 {
-	listWidget->item(0)->setIcon(icon);
 	listWidget->item(1)->setIcon(icon);
+	listWidget->item(2)->setIcon(icon);
 }
 
 void OBSBasicSettings::SetOutputIcon(const QIcon &icon)
 {
 	UNUSED_PARAMETER(icon);
+	//listWidget->item(2)->setIcon(icon);
 }
 
 void OBSBasicSettings::SetAudioIcon(const QIcon &icon)

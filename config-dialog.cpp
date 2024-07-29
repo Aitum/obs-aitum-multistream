@@ -540,7 +540,11 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	});
 	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
 
-	auto videoEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("VideoEncoder")));
+	if (videoEncoderIndex->currentIndex() != 0 ||
+	    !config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo"))
+		videoPageLayout->setRowVisible(videoEncoderIndex, false);
+
+	auto videoEncoderGroup = new QWidget();
 	videoEncoderGroup->setProperty("altColor", QVariant(true));
 	auto videoEncoderGroupLayout = new QFormLayout();
 	videoEncoderGroup->setLayout(videoEncoderGroupLayout);
@@ -731,7 +735,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	});
 	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoderIndex")), audioEncoderIndex);
 
-	auto audioEncoderGroup = new QGroupBox(QString::fromUtf8(obs_module_text("AudioEncoder")));
+	auto audioEncoderGroup = new QWidget();
 	audioEncoderGroup->setProperty("altColor", QVariant(true));
 	auto audioEncoderGroupLayout = new QFormLayout();
 	audioEncoderGroup->setLayout(audioEncoderGroupLayout);

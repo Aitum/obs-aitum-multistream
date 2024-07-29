@@ -21,6 +21,7 @@
 #include <QUrl>
 #include <QIcon>
 #include <QTabWidget>
+#include <QDialogButtonBox>
 
 #include "obs-module.h"
 #include "version.h"
@@ -265,17 +266,15 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	newVersion->setOpenExternalLinks(true);
 	newVersion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
-	QPushButton *okButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("OK")));
-	connect(okButton, &QPushButton::clicked, [this] { accept(); });
+	auto buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
-	QPushButton *cancelButton = new QPushButton(QString::fromUtf8(obs_frontend_get_locale_string("Cancel")));
-	connect(cancelButton, &QPushButton::clicked, [this] { reject(); });
+	connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+	connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
 	QHBoxLayout *bottomLayout = new QHBoxLayout;
 	bottomLayout->addWidget(version, 1, Qt::AlignLeft);
 	bottomLayout->addWidget(newVersion, 1, Qt::AlignLeft);
-	bottomLayout->addWidget(cancelButton, 0, Qt::AlignRight);
-	bottomLayout->addWidget(okButton, 0, Qt::AlignRight);
+	bottomLayout->addWidget(buttonBox, 0, Qt::AlignRight);
 
 	QHBoxLayout *contentLayout = new QHBoxLayout;
 	contentLayout->addWidget(listWidget);

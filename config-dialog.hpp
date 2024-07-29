@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QIcon>
 #include <QString>
+#include <QToolButton>
 
 class OBSBasicSettings : public QDialog {
 	Q_OBJECT

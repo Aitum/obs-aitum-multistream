@@ -8,11 +8,19 @@
 #include <QGroupBox>
 #include <QIcon>
 #include <QString>
+#include <QToolButton>
 #include "obs.h"
 
 class ConfigUtils {
 public:
+	// UI generation
 	static QPushButton *generateButton(QString buttonText);
+	static QGroupBox *generateSettingsGroupBox(QString headingText);
+	static QToolButton *generateMenuButton(QString title, QIcon icon);
+	
+	
+	
+	
 	static void updateButtonStyles(QPushButton *defaultButton, QPushButton *customButton, int activeIndex);
 
 

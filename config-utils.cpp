@@ -8,6 +8,7 @@
 #include <QAbstractButton>
 #include <QWidget>
 #include <QIcon>
+#include <QToolButton>
 
 #include "obs.h"
 #include "obs-module.h"
@@ -24,6 +25,30 @@ QPushButton *ConfigUtils::generateButton(QString buttonText) {
 	
 	return button;
 }
+
+// Generate settings groupbox
+QGroupBox *ConfigUtils::generateSettingsGroupBox(QString headingText) {
+	auto group = headingText == nullptr ? new QGroupBox : new QGroupBox(headingText);
+//	group->setProperty("altColor", QVariant(true));
+	
+	return group;
+}
+
+// Generate menu button
+QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon) {
+	auto button = new QToolButton;
+
+	button->setText(title);
+	button->setIcon(icon);
+	button->setIconSize(QSize(32, 32));
+	button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+	button->setStyleSheet(
+		"min-width: 110px; max-width: 110px; min-height: 90px; max-height: 90px; padding-top: 16px; font-weight: bold;");
+
+	return button;
+}
+
+
 
 // For setting the active property stuff on buttons
 void ConfigUtils::updateButtonStyles(QPushButton *defaultButton, QPushButton *customButton, int activeIndex) {

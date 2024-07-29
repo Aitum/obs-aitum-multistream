@@ -88,6 +88,38 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	settingsPages->setLineWidth(0);
 
 	QWidget *generalPage = new QWidget;
+	auto generalPageLayout = new QVBoxLayout;
+	generalPage->setLayout(generalPageLayout);
+	
+	auto infoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("WelcomeTitle")));
+	infoBox->setStyleSheet("padding-top: 12px");
+	auto infoLayout = new QVBoxLayout;
+	infoBox->setLayout(infoLayout);
+	
+	auto infoLabel = new QLabel(QString::fromUtf8(obs_module_text("WelcomeText")));
+	infoLabel->setWordWrap(true);
+	infoLayout->addWidget(infoLabel, 1);
+	
+	auto buttonGroupBox = new QWidget();
+	auto buttonLayout = new QHBoxLayout;
+	buttonLayout->setSpacing(8);
+	buttonLayout->setAlignment(Qt::AlignCenter);
+	
+	auto mainButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsMainOutputsButton")), QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+	auto verticalButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsVerticalOutputsButton")), QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+	auto helpButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsHelpButton")), main_window->property("defaultIcon").value<QIcon>());
+	
+	buttonLayout->addWidget(mainButton, 0);
+	buttonLayout->addWidget(verticalButton, 0);
+	buttonLayout->addWidget(helpButton, 0);
+	
+	buttonGroupBox->setLayout(buttonLayout);
+	
+	generalPageLayout->addWidget(infoBox, 0);
+	generalPageLayout->addWidget(buttonGroupBox, 1);
+	
+	
+	
 	QScrollArea *scrollArea = new QScrollArea;
 	scrollArea->setWidget(generalPage);
 	scrollArea->setWidgetResizable(true);
@@ -201,7 +233,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	serverLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
 
 	auto mainTitle = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasTitle")));
-	mainTitle->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
+	mainTitle->setStyleSheet("font-weight: bold;");
 	serverLayout->addRow(mainTitle);
 
 	auto mainDescription = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasDescription")));
@@ -296,13 +328,26 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	contentLayout->addWidget(settingsPages, 1);
 
 	listWidget->connect(listWidget, &QListWidget::currentRowChanged, settingsPages, &QStackedWidget::setCurrentIndex);
-	listWidget->setCurrentRow(1);
+	listWidget->setCurrentRow(0);
 
 	QVBoxLayout *vlayout = new QVBoxLayout;
 	vlayout->setContentsMargins(11, 11, 11, 11);
 	vlayout->addLayout(contentLayout);
 	vlayout->addLayout(bottomLayout);
 	setLayout(vlayout);
+	
+	// Button connects for general page, clean this up in the future when we abstract pages
+	connect(mainButton, &QPushButton::clicked, [this] {
+		listWidget->setCurrentRow(1);
+	});
+	
+	connect(verticalButton, &QPushButton::clicked, [this] {
+		listWidget->setCurrentRow(2);
+	});
+	
+	connect(helpButton, &QPushButton::clicked, [this] {
+		listWidget->setCurrentRow(listWidget->count() - 1);
+	});
 }
 
 OBSBasicSettings::~OBSBasicSettings()

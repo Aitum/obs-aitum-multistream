@@ -50,11 +50,11 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	setMinimumHeight(480);
 	setWindowTitle(obs_module_text("AitumMultistreamSettings"));
 	setSizeGripEnabled(true);
-
+	
 	const auto main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
-
+	
 	listWidget = new QListWidget(this);
-
+	
 	listWidget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
 	listWidget->setMaximumWidth(180);
 	QListWidgetItem *listwidgetitem = new QListWidgetItem(listWidget);
@@ -62,106 +62,115 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	//listwidgetitem->setProperty("themeID", QVariant(QString::fromUtf8("configIconSmall")));
 	//cogsIcon
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("General")));
-
+	
 	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("MainCanvas")));
-
+	
 	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("VerticalCanvas")));
-
+	
 	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(main_window->property("defaultIcon").value<QIcon>());
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("SetupTroubleshooter")));
-
+	listwidgetitem->setHidden(true);
+	
 	listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(main_window->property("defaultIcon").value<QIcon>());
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("Help")));
-
+	
+	listwidgetitem = new QListWidgetItem(listWidget);
+	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/aitum/media/aitum.png")));
+	listwidgetitem->setText(QString::fromUtf8(obs_module_text("SupportButton")));
+	
 	listWidget->setCurrentRow(0);
 	listWidget->setSpacing(1);
-
+	
 	auto settingsPages = new QStackedWidget;
 	settingsPages->setContentsMargins(0, 0, 0, 0);
 	settingsPages->setFrameShape(QFrame::NoFrame);
 	settingsPages->setLineWidth(0);
-
+	
 	QWidget *generalPage = new QWidget;
 	auto generalPageLayout = new QVBoxLayout;
 	generalPage->setLayout(generalPageLayout);
-
+	
 	auto infoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("WelcomeTitle")));
 	infoBox->setStyleSheet("padding-top: 12px");
 	auto infoLayout = new QVBoxLayout;
 	infoBox->setLayout(infoLayout);
-
+	
 	auto infoLabel = new QLabel(QString::fromUtf8(obs_module_text("WelcomeText")));
 	infoLabel->setWordWrap(true);
 	infoLayout->addWidget(infoLabel, 1);
-
+	
 	auto buttonGroupBox = new QWidget();
 	auto buttonLayout = new QHBoxLayout;
 	buttonLayout->setSpacing(8);
 	buttonLayout->setAlignment(Qt::AlignCenter);
-
+	
 	generalMainButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsMainOutputsButton")),
-							    QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+														QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	generalVerticalButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsVerticalOutputsButton")),
-								QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
+															QIcon(QString::fromUtf8(":/settings/images/settings/stream.svg")));
 	generalHelpButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SettingsHelpButton")),
-							    main_window->property("defaultIcon").value<QIcon>());
-
+														main_window->property("defaultIcon").value<QIcon>());
+	generalSupportAitumButton = ConfigUtils::generateMenuButton(QString::fromUtf8(obs_module_text("SupportButton")),
+																QIcon(QString::fromUtf8(":/aitum/media/aitum.png")));
+	
 	buttonLayout->addWidget(generalMainButton, 0);
 	buttonLayout->addWidget(generalVerticalButton, 0);
 	buttonLayout->addWidget(generalHelpButton, 0);
+	buttonLayout->addWidget(generalSupportAitumButton, 0);
+
 
 	buttonGroupBox->setLayout(buttonLayout);
-
+	
 	generalPageLayout->addWidget(infoBox, 0);
 	generalPageLayout->addWidget(buttonGroupBox, 1);
-
+	
 	QScrollArea *scrollArea = new QScrollArea;
 	scrollArea->setWidget(generalPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
-
+	
 	auto mainOutputsPage = new QGroupBox;
 	mainOutputsPage->setProperty("customTitle", QVariant(true));
 	mainOutputsPage->setStyleSheet(QString("QGroupBox[customTitle=\"true\"]{ padding-top: 4px;}"));
 	mainOutputsPage->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-
+	
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(mainOutputsPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
-
+	
 	auto verticalOutputsPage = new QGroupBox;
 	verticalOutputsPage->setProperty("customTitle", QVariant(true));
 	verticalOutputsPage->setStyleSheet(QString("QGroupBox[customTitle=\"true\"]{ padding-top: 4px;}"));
 	verticalOutputsPage->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-
+	
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(verticalOutputsPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
-
+	
 	troubleshooterText = new QTextEdit;
 	troubleshooterText->setReadOnly(true);
-
+	
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(troubleshooterText);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
-
+	
 	auto helpPage = new QWidget;
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(helpPage);
@@ -169,30 +178,30 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
-
+	
 	//mainOutputsPage
-
+	
 	mainOutputsLayout = new QFormLayout;
 	mainOutputsLayout->setContentsMargins(9, 2, 9, 9);
 	mainOutputsLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	mainOutputsLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
-
+	
 	auto streaming_title_layout = new QHBoxLayout;
 	auto streaming_title = new QLabel(QString::fromUtf8(obs_module_text("MainCanvas")));
 	streaming_title->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
 	streaming_title_layout->addWidget(streaming_title, 0, Qt::AlignLeft);
 	//auto guide_link = new QLabel(QString::fromUtf8("<a href=\"https://l.aitum.tv/vh-streaming-settings\">") + QString::fromUtf8(obs_module_text("ViewGuide")) + QString::fromUtf8("</a>"));
 	//guide_link->setOpenExternalLinks(true);
-
+	
 	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
-
+	
 	connect(addButton, &QPushButton::clicked, [this] {
 		auto outputDialog = new OutputDialog(this);
-
+		
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
-
+		
 		if (outputDialog->exec() == QDialog::Accepted) {
 			// create a new output
 			if (!settings)
@@ -203,55 +212,55 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 				obs_data_set_array(settings, "outputs", outputs);
 			}
 			auto s = obs_data_create();
-
+			
 			// Set the info from the output dialog
 			obs_data_set_string(s, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(s, "stream_server", outputDialog->outputServer.toUtf8().constData());
 			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
-
+			
 			obs_data_array_push_back(outputs, s);
 			AddServer(mainOutputsLayout, s, outputs);
 			obs_data_array_release(outputs);
 			obs_data_release(s);
 		}
-
+		
 		delete outputDialog;
 	});
-
+	
 	//streaming_title_layout->addWidget(guide_link, 0, Qt::AlignRight);
 	streaming_title_layout->addWidget(addButton, 0, Qt::AlignRight);
-
+	
 	mainOutputsLayout->addRow(streaming_title_layout);
-
+	
 	auto serverGroup = new QGroupBox;
 	serverGroup->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	serverGroup->setStyleSheet(QString("QGroupBox{background-color: %1; padding-top: 4px;}")
-					   .arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
-
+							   .arg(palette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)));
+	
 	auto serverLayout = new QFormLayout;
 	serverLayout->setContentsMargins(9, 2, 9, 9);
 	serverLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	serverLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
-
+	
 	auto mainTitle = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasTitle")));
 	mainTitle->setStyleSheet("font-weight: bold;");
 	serverLayout->addRow(mainTitle);
-
+	
 	auto mainDescription = new QLabel(QString::fromUtf8(obs_module_text("SettingsMainCanvasDescription")));
 	//	mainTitle->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
 	serverLayout->addRow(mainDescription);
-
+	
 	serverGroup->setLayout(serverLayout);
-
+	
 	mainOutputsLayout->addRow(serverGroup);
-
+	
 	mainOutputsPage->setLayout(mainOutputsLayout);
-
+	
 	verticalOutputsLayout = new QFormLayout;
 	verticalOutputsLayout->setContentsMargins(9, 2, 9, 9);
 	verticalOutputsLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 	verticalOutputsLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
-
+	
 	streaming_title_layout = new QHBoxLayout;
 	streaming_title = new QLabel(QString::fromUtf8(obs_module_text("VerticalCanvas")));
 	streaming_title->setStyleSheet(QString::fromUtf8("font-weight: bold;"));
@@ -269,16 +278,16 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	//		AddServer(verticalOutputsLayout, s);
 	//		obs_data_release(s);
 	//	});
-
+	
 	verticalAddButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	verticalAddButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
-
+	
 	connect(verticalAddButton, &QPushButton::clicked, [this] {
 		auto outputDialog = new OutputDialog(this);
-
+		
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
-
+		
 		if (outputDialog->exec() == QDialog::Accepted) {
 			// create a new output
 			if (!vertical_outputs)
@@ -291,58 +300,82 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 			AddServer(verticalOutputsLayout, s, vertical_outputs);
 			obs_data_release(s);
 		}
-
+		
 		delete outputDialog;
 	});
-
+	
 	streaming_title_layout->addWidget(verticalAddButton, 0, Qt::AlignRight);
-
+	
 	verticalOutputsLayout->addRow(streaming_title_layout);
-
+	
 	verticalOutputsPage->setLayout(verticalOutputsLayout);
-
+	
+	// Support page
+	QWidget *supportPage = new QWidget;
+	auto supportPageLayout = new QVBoxLayout;
+	supportPage->setLayout(supportPageLayout);
+	
+	auto supportInfoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("SupportTitle")));
+	supportInfoBox->setStyleSheet("padding-top: 12px");
+	auto supportLayout = new QVBoxLayout;
+	supportInfoBox->setLayout(supportLayout);
+	
+	auto supportLabel = new QLabel(QString::fromUtf8(obs_module_text("SupportText")));
+	supportLabel->setStyleSheet("font-size: 14px");
+	supportLabel->setWordWrap(true);
+	supportLabel->setTextFormat(Qt::RichText);
+	supportLabel->setOpenExternalLinks(true);
+	supportLayout->addWidget(supportLabel, 1);
+	supportPageLayout->addWidget(supportInfoBox, 1, Qt::AlignTop);
+	
+	settingsPages->addWidget(supportPage);
+	
+	///
 	const auto version =
 		new QLabel(QString::fromUtf8(obs_module_text("Version")) + " " + QString::fromUtf8(PROJECT_VERSION) + " " +
 			   QString::fromUtf8(obs_module_text("MadeBy")) + " <a href=\"https://aitum.tv\">Aitum</a>");
 	version->setOpenExternalLinks(true);
 	version->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-
+	
 	newVersion = new QLabel;
 	newVersion->setProperty("themeID", "warning");
 	newVersion->setVisible(false);
 	newVersion->setOpenExternalLinks(true);
 	newVersion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-
+	
 	auto buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-
+	
 	connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
 	connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-
+	
 	QHBoxLayout *bottomLayout = new QHBoxLayout;
 	bottomLayout->addWidget(version, 1, Qt::AlignLeft);
 	bottomLayout->addWidget(newVersion, 1, Qt::AlignLeft);
 	bottomLayout->addWidget(buttonBox, 0, Qt::AlignRight);
-
+	
 	QHBoxLayout *contentLayout = new QHBoxLayout;
 	contentLayout->addWidget(listWidget);
-
+	
 	contentLayout->addWidget(settingsPages, 1);
-
+	
 	listWidget->connect(listWidget, &QListWidget::currentRowChanged, settingsPages, &QStackedWidget::setCurrentIndex);
 	listWidget->setCurrentRow(0);
-
+	
 	QVBoxLayout *vlayout = new QVBoxLayout;
 	vlayout->setContentsMargins(11, 11, 11, 11);
 	vlayout->addLayout(contentLayout);
 	vlayout->addLayout(bottomLayout);
 	setLayout(vlayout);
-
+	
 	// Button connects for general page, clean this up in the future when we abstract pages
 	connect(generalMainButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(1); });
-
+	
 	connect(generalVerticalButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(2); });
+	
+	connect(generalHelpButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(listWidget->count() - 2); });
+	
+	connect(generalSupportAitumButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(listWidget->count() - 1); });
 
-	connect(generalHelpButton, &QPushButton::clicked, [this] { listWidget->setCurrentRow(listWidget->count() - 1); });
 }
 
 OBSBasicSettings::~OBSBasicSettings()

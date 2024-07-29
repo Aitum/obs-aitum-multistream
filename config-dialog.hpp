@@ -58,6 +58,7 @@ private:
 	QToolButton *generalMainButton;
 	QToolButton *generalVerticalButton;
 	QToolButton *generalHelpButton;
+	QToolButton *generalSupportAitumButton;
 
 private slots:
 	void SetGeneralIcon(const QIcon &icon);

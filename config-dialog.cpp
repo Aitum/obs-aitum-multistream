@@ -28,6 +28,7 @@
 
 #include <sstream>
 #include <util/platform.h>
+#include <util/config-file.h>
 #include "output-dialog.hpp"
 #include "config-utils.hpp"
 
@@ -415,7 +416,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto server_title_layout = new QHBoxLayout;
 
 	auto platformIconLabel = new QLabel;
-	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
+	auto platformIcon =
+		ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
 	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
 	server_title_layout->addWidget(platformIconLabel, 0);
 
@@ -598,7 +600,13 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "video_encoder", encoder);
 			if (!encoder || encoder[0] == '\0') {
-				videoPageLayout->setRowVisible(videoEncoderIndex, true);
+				if (config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo")) {
+					videoPageLayout->setRowVisible(videoEncoderIndex, true);
+				} else {
+					videoPageLayout->setRowVisible(videoEncoderIndex, false);
+					if (videoEncoderIndex->currentIndex() != 0)
+						videoEncoderIndex->setCurrentIndex(0);
+				}
 				videoEncoderGroup->setVisible(false);
 			} else {
 				videoPageLayout->setRowVisible(videoEncoderIndex, false);

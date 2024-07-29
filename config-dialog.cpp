@@ -559,9 +559,18 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	videoEncoder->setCurrentIndex(0);
 	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
 
+	bool allEmpty = false;
 	auto videoEncoderIndex = new QComboBox;
 	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
-		videoEncoderIndex->addItem(QString::number(i + 1) + " " + mainEncoderDescriptions[i]);
+		QString settingName = QString::fromUtf8("video_encoder_description") + QString::number(i);
+		auto description = obs_data_get_string(this->settings, settingName.toUtf8().constData());
+		if (!description || description[0] == '\0') {
+			if (i != 0 && !allEmpty) {
+				break;
+			}
+			allEmpty = true;
+		}
+		videoEncoderIndex->addItem(QString::number(i + 1) + " " + description);
 	}
 	videoEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "video_encoder_index"));
 	connect(videoEncoderIndex, &QComboBox::currentIndexChanged, [videoEncoderIndex, settings] {
@@ -733,7 +742,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		if (strcmp(type, current_type) == 0)
 			videoEncoder->setCurrentIndex(videoEncoder->count() - 1);
 	}
-	if (!advanced || videoEncoder->currentIndex() <= 0)
+	if (videoEncoder->currentIndex() <= 0)
 		videoEncoderGroup->setVisible(false);
 
 	auto audioEncoder = new QComboBox;

@@ -80,7 +80,5 @@ public:
 	void LoadOutputStats(std::vector<video_t *> *oldVideos);
 	void SetNewerVersion(QString newer_version_available);
 
-	QStringList mainEncoderDescriptions = QStringList(MAX_OUTPUT_VIDEO_ENCODERS);
-
 public slots:
 };

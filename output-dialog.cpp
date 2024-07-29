@@ -356,6 +356,7 @@ QWidget *OutputDialog::WizardServicePage()
 	pageLayout->setAlignment(Qt::AlignTop);
 
 	auto description = new QLabel(QString::fromUtf8(obs_module_text("NewOutputSelectService")));
+	description->setWordWrap(true);
 	description->setStyleSheet("margin-bottom: 20px;");
 	pageLayout->addWidget(description);
 

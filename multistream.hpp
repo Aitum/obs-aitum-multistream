@@ -50,7 +50,6 @@ private:
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
 
-
 	static void frontend_event(enum obs_frontend_event event, void *private_data);
 
 	static void stream_output_stop(void *data, calldata_t *calldata);

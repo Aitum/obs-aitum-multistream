@@ -15,27 +15,29 @@
 #include "obs-frontend-api.h"
 #include <util/dstr.h>
 
-
 // Generate buttons for default/custom stuff
-QPushButton *ConfigUtils::generateButton(QString buttonText) {
+QPushButton *ConfigUtils::generateButton(QString buttonText)
+{
 	auto styles = QString::fromUtf8("QPushButton[unselected=\"true\"] { background: pink; }");
-	
+
 	auto button = new QPushButton(buttonText);
 	button->setStyleSheet(styles);
-	
+
 	return button;
 }
 
 // Generate settings groupbox
-QGroupBox *ConfigUtils::generateSettingsGroupBox(QString headingText) {
+QGroupBox *ConfigUtils::generateSettingsGroupBox(QString headingText)
+{
 	auto group = headingText == nullptr ? new QGroupBox : new QGroupBox(headingText);
-//	group->setProperty("altColor", QVariant(true));
-	
+	//	group->setProperty("altColor", QVariant(true));
+
 	return group;
 }
 
 // Generate menu button
-QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon) {
+QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon)
+{
 	auto button = new QToolButton;
 
 	button->setText(title);
@@ -48,21 +50,19 @@ QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon) {
 	return button;
 }
 
-
-
 // For setting the active property stuff on buttons
-void ConfigUtils::updateButtonStyles(QPushButton *defaultButton, QPushButton *customButton, int activeIndex) {
+void ConfigUtils::updateButtonStyles(QPushButton *defaultButton, QPushButton *customButton, int activeIndex)
+{
 	defaultButton->setProperty("unselected", activeIndex != 0 ? true : false);
 	customButton->setProperty("unselected", activeIndex != 1 ? true : false);
 }
-
 
 // Platform icons deciphered from endpoints
 QIcon ConfigUtils::getPlatformIconFromEndpoint(QString endpoint)
 {
 
 	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
-		endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
+	    endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
 		return QIcon(":/aitum/media/twitch.png");
 	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube
 		return QIcon(":/aitum/media/youtube.png");

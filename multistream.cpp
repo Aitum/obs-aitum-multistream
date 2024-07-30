@@ -419,11 +419,15 @@ MultistreamDock::~MultistreamDock()
 {
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		auto old = std::get<obs_output_t *>(*it);
+		signal_handler_t *signal = obs_output_get_signal_handler(old);
+		signal_handler_disconnect(signal, "start", stream_output_start, this);
+		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
 		auto service = obs_output_get_service(old);
 		if (obs_output_active(old)) {
 			obs_output_force_stop(old);
 		}
-		obs_output_release(old);
+		if (!exiting)
+			obs_output_release(old);
 		obs_service_release(service);
 	}
 	outputs.clear();
@@ -437,9 +441,11 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 	auto md = (MultistreamDock *)private_data;
 	if (event == OBS_FRONTEND_EVENT_PROFILE_CHANGED || event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
 		md->LoadSettingsFile();
-	} else if (event == OBS_FRONTEND_EVENT_PROFILE_CHANGING || event == OBS_FRONTEND_EVENT_PROFILE_RENAMED ||
-		   event == OBS_FRONTEND_EVENT_EXIT) {
+	} else if (event == OBS_FRONTEND_EVENT_PROFILE_CHANGING || event == OBS_FRONTEND_EVENT_PROFILE_RENAMED) {
 		md->SaveSettings();
+	} else if (event == OBS_FRONTEND_EVENT_EXIT) {
+		md->SaveSettings();
+		md->exiting = true;
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED) {
 		md->mainStreamButton->setChecked(true);
 		md->outputButtonStyle(md->mainStreamButton);
@@ -589,8 +595,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 					if (std::get<std::string>(*it) != name)
 						continue;
 					obs_queue_task(
-						OBS_TASK_GRAPHICS,
-						[](void *param) { obs_output_stop((obs_output_t *)param); },
+						OBS_TASK_GRAPHICS, [](void *param) { obs_output_stop((obs_output_t *)param); },
 						std::get<obs_output *>(*it), false);
 				}
 			}
@@ -899,8 +904,9 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 				},
 				Qt::QueuedConnection);
 		}
-		QMetaObject::invokeMethod(
-			button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
+		if (!md->exiting)
+			QMetaObject::invokeMethod(
+				button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
 		md->outputs.erase(it);
 		break;
 	}

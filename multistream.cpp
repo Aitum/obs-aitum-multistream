@@ -329,7 +329,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			oldVideo.push_back(mainVideo);
 			mainVideo = obs_get_video();
 			for (auto it = outputs.begin(); it != outputs.end(); it++) {
-				auto venc = obs_output_get_video_encoder(it->second);
+				auto venc = obs_output_get_video_encoder(std::get<obs_output_t *>(*it));
 				if (venc && !obs_encoder_active(venc))
 					obs_encoder_set_video(venc, mainVideo);
 			}
@@ -364,9 +364,11 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			std::string name = streamGroup->objectName().toUtf8().constData();
 			if (name.empty())
 				continue;
-			auto it = outputs.find(name);
-			if (it != outputs.end() && it->second) {
-				auto active = obs_output_active(it->second);
+			for (auto it = outputs.begin(); it != outputs.end(); it++) {
+				if (std::get<std::string>(*it) != name)
+					continue;
+
+				auto active = obs_output_active(std::get<obs_output_t *>(*it));
 				foreach(QObject * c, streamGroup->children())
 				{
 					std::string cn = c->metaObject()->className();
@@ -415,6 +417,15 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 MultistreamDock::~MultistreamDock()
 {
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		auto old = std::get<obs_output_t *>(*it);
+		auto service = obs_output_get_service(old);
+		if (obs_output_active(old)) {
+			obs_output_force_stop(old);
+		}
+		obs_output_release(old);
+		obs_service_release(service);
+	}
 	obs_data_release(current_config);
 	obs_frontend_remove_event_callback(frontend_event, this);
 	multistream_dock = nullptr;
@@ -493,21 +504,8 @@ void MultistreamDock::LoadSettings()
 	int idx = 1;
 	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
-		auto name = streamGroup->objectName();
-		bool found = false;
-		for (size_t i = 0; i < count; i++) {
-			auto item = obs_data_array_item(outputs, i);
-			if (QString::fromUtf8(obs_data_get_string(item, "name")) == name) {
-				found = true;
-			}
-			obs_data_release(item);
-		}
-		if (!found) {
-			mainCanvasOutputLayout->removeWidget(streamGroup);
-			RemoveWidget(streamGroup);
-		} else {
-			idx++;
-		}
+		mainCanvasOutputLayout->removeWidget(streamGroup);
+		RemoveWidget(streamGroup);
 	}
 
 	obs_data_array_enum(
@@ -587,11 +585,10 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 					streamButton->setChecked(false);
 			} else {
 				const char *name = obs_data_get_string(data, "name");
-				auto it = outputs.find(name);
-				if (it != outputs.end()) {
-					obs_output_stop(it->second);
-					obs_output_release(it->second);
-					outputs.erase(it);
+				for (auto it = outputs.begin(); it != outputs.end(); it++) {
+					if (std::get<std::string>(*it) != name)
+						continue;
+					obs_output_force_stop(std::get<obs_output *>(*it));
 				}
 			}
 			outputButtonStyle(streamButton);
@@ -689,15 +686,18 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	if (!settings)
 		return false;
 	const char *name = obs_data_get_string(settings, "name");
-	auto old = outputs.find(name);
-	if (old != outputs.end()) {
-		auto service = obs_output_get_service(old->second);
-		if (obs_output_active(old->second)) {
-			obs_output_stop(old->second);
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) != name)
+			continue;
+		auto old = std::get<obs_output_t *>(*it);
+		auto service = obs_output_get_service(old);
+		if (obs_output_active(old)) {
+			obs_output_force_stop(old);
 		}
-		obs_output_release(old->second);
+		obs_output_release(old);
 		obs_service_release(service);
-		outputs.erase(old);
+		outputs.erase(it);
+		break;
 	}
 	obs_encoder_t *venc = nullptr;
 	obs_encoder_t *aenc = nullptr;
@@ -761,7 +761,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			}
 			std::string audio_encoder_name = "aitum_multi_audio_encoder_";
 			audio_encoder_name += name;
-			aenc = obs_audio_encoder_create(venc_name, audio_encoder_name.c_str(), s,
+			aenc = obs_audio_encoder_create(aenc_name, audio_encoder_name.c_str(), s,
 							obs_data_get_int(settings, "audio_track"), nullptr);
 			obs_data_release(s);
 			obs_encoder_set_audio(aenc, obs_get_audio());
@@ -839,10 +839,10 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	}
 
 	signal_handler_t *signal = obs_output_get_signal_handler(output);
-	signal_handler_disconnect(signal, "start", stream_output_start, streamButton);
-	signal_handler_disconnect(signal, "stop", stream_output_stop, streamButton);
-	signal_handler_connect(signal, "start", stream_output_start, streamButton);
-	signal_handler_connect(signal, "stop", stream_output_stop, streamButton);
+	signal_handler_disconnect(signal, "start", stream_output_start, this);
+	signal_handler_disconnect(signal, "stop", stream_output_stop, this);
+	signal_handler_connect(signal, "start", stream_output_start, this);
+	signal_handler_connect(signal, "stop", stream_output_stop, this);
 
 	//for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
 	//auto venc = obs_output_get_video_encoder2(main_output, 0);
@@ -854,24 +854,47 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 
 	obs_output_start(output);
 
-	outputs[obs_data_get_string(settings, "name")] = output;
+	outputs.push_back({obs_data_get_string(settings, "name"), output, streamButton});
 
 	return true;
 }
 
 void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 {
-	UNUSED_PARAMETER(calldata);
-	auto streamButton = (QPushButton *)data;
-	streamButton->setChecked(true);
+	auto md = (MultistreamDock *)data;
+	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
+	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+		if (std::get<obs_output_t *>(*it) != output)
+			continue;
+		auto button = std::get<QPushButton *>(*it);
+		if (!button->isChecked()) {
+			QMetaObject::invokeMethod(button, [button, md] {
+				button->setChecked(true);
+				md->outputButtonStyle(button);
+			});
+		}
+	}
 }
 
 void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 {
-	UNUSED_PARAMETER(calldata);
-	auto streamButton = (QPushButton *)data;
+	auto md = (MultistreamDock *)data;
+	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
+	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+		if (std::get<obs_output_t *>(*it) != output)
+			continue;
+		auto button = std::get<QPushButton *>(*it);
+		if (button->isChecked()) {
+			QMetaObject::invokeMethod(button, [button, md] {
+				button->setChecked(false);
+				md->outputButtonStyle(button);
+			});
+		}
+		//obs_output_release(output);
+		//md->outputs.erase(it);
+		//break;
+	}
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
-	streamButton->setChecked(false);
 }
 
 void MultistreamDock::NewerVersionAvailable(QString version)

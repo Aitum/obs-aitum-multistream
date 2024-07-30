@@ -34,7 +34,7 @@ private:
 	video_t *mainVideo = nullptr;
 	std::vector<video_t *> oldVideo;
 
-	std::map<std::string, obs_output_t *> outputs;
+	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
 
 	void LoadSettingsFile();
 	void LoadSettings();

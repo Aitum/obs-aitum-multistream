@@ -500,7 +500,6 @@ void MultistreamDock::LoadSettingsFile()
 void MultistreamDock::LoadSettings()
 {
 	auto outputs = obs_data_get_array(current_config, "outputs");
-	auto count = obs_data_array_count(outputs);
 	int idx = 1;
 	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();

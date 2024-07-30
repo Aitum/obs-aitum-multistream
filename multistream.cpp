@@ -426,6 +426,7 @@ MultistreamDock::~MultistreamDock()
 		obs_output_release(old);
 		obs_service_release(service);
 	}
+	outputs.clear();
 	obs_data_release(current_config);
 	obs_frontend_remove_event_callback(frontend_event, this);
 	multistream_dock = nullptr;
@@ -587,7 +588,10 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 				for (auto it = outputs.begin(); it != outputs.end(); it++) {
 					if (std::get<std::string>(*it) != name)
 						continue;
-					obs_output_force_stop(std::get<obs_output *>(*it));
+					obs_queue_task(
+						OBS_TASK_GRAPHICS,
+						[](void *param) { obs_output_force_stop((obs_output_t *)param); },
+						std::get<obs_output *>(*it), false);
 				}
 			}
 			outputButtonStyle(streamButton);
@@ -867,10 +871,13 @@ void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 			continue;
 		auto button = std::get<QPushButton *>(*it);
 		if (!button->isChecked()) {
-			QMetaObject::invokeMethod(button, [button, md] {
-				button->setChecked(true);
-				md->outputButtonStyle(button);
-			});
+			QMetaObject::invokeMethod(
+				button,
+				[button, md] {
+					button->setChecked(true);
+					md->outputButtonStyle(button);
+				},
+				Qt::QueuedConnection);
 		}
 	}
 }
@@ -884,14 +891,18 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 			continue;
 		auto button = std::get<QPushButton *>(*it);
 		if (button->isChecked()) {
-			QMetaObject::invokeMethod(button, [button, md] {
-				button->setChecked(false);
-				md->outputButtonStyle(button);
-			});
+			QMetaObject::invokeMethod(
+				button,
+				[button, md] {
+					button->setChecked(false);
+					md->outputButtonStyle(button);
+				},
+				Qt::QueuedConnection);
 		}
-		//obs_output_release(output);
-		//md->outputs.erase(it);
-		//break;
+		QMetaObject::invokeMethod(
+			button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
+		md->outputs.erase(it);
+		break;
 	}
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
 }

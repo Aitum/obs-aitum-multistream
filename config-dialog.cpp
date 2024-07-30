@@ -380,7 +380,9 @@ OBSBasicSettings::~OBSBasicSettings()
 {
 	if (vertical_outputs)
 		obs_data_array_release(vertical_outputs);
-	for (auto it = encoder_properties.begin(); it != encoder_properties.end(); it++)
+	for (auto it = video_encoder_properties.begin(); it != video_encoder_properties.end(); it++)
+		obs_properties_destroy(it->second);
+	for (auto it = audio_encoder_properties.begin(); it != audio_encoder_properties.end(); it++)
 		obs_properties_destroy(it->second);
 }
 
@@ -693,10 +695,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				videoPageLayout->setRowVisible(videoEncoderIndex, false);
 				if (!videoEncoderGroup->isVisibleTo(videoPage))
 					videoEncoderGroup->setVisible(true);
-				auto t = encoder_properties.find(serverGroup);
-				if (t != encoder_properties.end()) {
+				auto t = video_encoder_properties.find(serverGroup);
+				if (t != video_encoder_properties.end()) {
 					obs_properties_destroy(t->second);
-					encoder_properties.erase(t);
+					video_encoder_properties.erase(t);
 				}
 				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= (main ? 2 : 0); i--) {
 					videoEncoderGroupLayout->removeRow(i);
@@ -708,7 +710,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_data_set_obj(settings, "video_encoder_settings", ves);
 				}
 				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
-				encoder_properties[serverGroup] = stream_encoder_properties;
+				video_encoder_properties[serverGroup] = stream_encoder_properties;
 
 				obs_property_t *property = obs_properties_first(stream_encoder_properties);
 				while (property) {
@@ -789,10 +791,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				audioPageLayout->setRowVisible(audioTrack, true);
 				if (!audioEncoderGroup->isVisibleTo(audioPage))
 					audioEncoderGroup->setVisible(true);
-				auto t = encoder_properties.find(serverGroup);
-				if (t != encoder_properties.end()) {
+				auto t = audio_encoder_properties.find(serverGroup);
+				if (t != audio_encoder_properties.end()) {
 					obs_properties_destroy(t->second);
-					encoder_properties.erase(t);
+					audio_encoder_properties.erase(t);
 				}
 				for (int i = audioEncoderGroupLayout->rowCount() - 1; i >= 0; i--) {
 					audioEncoderGroupLayout->removeRow(i);
@@ -804,7 +806,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_data_set_obj(settings, "audio_encoder_settings", aes);
 				}
 				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
-				encoder_properties[serverGroup] = stream_encoder_properties;
+				audio_encoder_properties[serverGroup] = stream_encoder_properties;
 
 				obs_property_t *property = obs_properties_first(stream_encoder_properties);
 				while (property) {

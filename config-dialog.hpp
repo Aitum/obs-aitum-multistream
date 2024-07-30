@@ -46,7 +46,8 @@ private:
 	obs_data_array_t *vertical_outputs = nullptr;
 
 	std::map<obs_property_t *, QWidget *> encoder_property_widgets;
-	std::map<QWidget *, obs_properties_t *> encoder_properties;
+	std::map<QWidget *, obs_properties_t *> video_encoder_properties;
+	std::map<QWidget *, obs_properties_t *> audio_encoder_properties;
 
 	QFormLayout *mainOutputsLayout;
 	QFormLayout *verticalOutputsLayout;

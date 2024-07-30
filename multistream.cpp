@@ -526,8 +526,8 @@ void MultistreamDock::LoadSettings()
 
 void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 {
-	auto name = QString::fromUtf8(obs_data_get_string(data, "name"));
-	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
+	auto nameChars = obs_data_get_string(data, "name");
+	auto name = QString::fromUtf8(nameChars);
 	if (vertical) {
 		for (int i = 0; i < verticalCanvasOutputLayout->count(); i++) {
 			auto item = verticalCanvasOutputLayout->itemAt(i);
@@ -545,6 +545,22 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 			}
 		}
 	}
+	auto streamButton = new QPushButton;
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) != nameChars)
+			continue;
+		if (obs_data_get_bool(data, "advanced")) {
+			auto output = std::get<obs_output_t *>(*it);
+			auto video_encoder = obs_output_get_video_encoder(output);
+			if (video_encoder &&
+			    strcmp(obs_encoder_get_id(video_encoder), obs_data_get_string(data, "video_encoder")) == 0) {
+				auto ves = obs_data_get_obj(data, "video_encoder_settings");
+				obs_encoder_update(video_encoder, ves);
+				obs_data_release(ves);
+			}
+		}
+		std::get<QPushButton *>(*it) = streamButton;
+	}
 	auto streamGroup = new QGroupBox;
 	streamGroup->setStyleSheet(outputGroupStyle);
 	streamGroup->setObjectName(name);
@@ -552,6 +568,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 
 	auto l2 = new QHBoxLayout;
 
+	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
 	auto platformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(endpoint);
 
@@ -560,7 +577,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	l2->addWidget(platformIconLabel);
 
 	l2->addWidget(new QLabel(name), 1);
-	auto streamButton = new QPushButton;
+
 	streamButton->setMinimumHeight(30);
 	streamButton->setObjectName(QStringLiteral("canvasStream"));
 	streamButton->setIcon(streamInactiveIcon);

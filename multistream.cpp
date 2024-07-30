@@ -590,7 +590,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 						continue;
 					obs_queue_task(
 						OBS_TASK_GRAPHICS,
-						[](void *param) { obs_output_force_stop((obs_output_t *)param); },
+						[](void *param) { obs_output_stop((obs_output_t *)param); },
 						std::get<obs_output *>(*it), false);
 				}
 			}

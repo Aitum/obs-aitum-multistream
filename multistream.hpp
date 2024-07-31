@@ -35,6 +35,7 @@ private:
 	std::vector<video_t *> oldVideo;
 
 	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
+	obs_data_array_t *vertical_outputs = nullptr;
 	bool exiting = false;
 
 	void LoadSettingsFile();

@@ -430,6 +430,7 @@ MultistreamDock::~MultistreamDock()
 		obs_service_release(service);
 	}
 	outputs.clear();
+	obs_data_array_release(vertical_outputs);
 	obs_data_release(current_config);
 	obs_frontend_remove_event_callback(frontend_event, this);
 	multistream_dock = nullptr;
@@ -948,37 +949,26 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 		return;
 	}
 
-	auto outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
+	if (vertical_outputs)
+		obs_data_array_release(vertical_outputs);
+	vertical_outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
+
 	calldata_free(&cd);
-	auto count = obs_data_array_count(outputs);
+	auto count = obs_data_array_count(vertical_outputs);
 	int idx = 0;
 	while (auto item = verticalCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
-		auto name = streamGroup->objectName();
-		bool found = false;
-		for (size_t i = 0; i < count; i++) {
-			auto item = obs_data_array_item(outputs, i);
-			if (QString::fromUtf8(obs_data_get_string(item, "name")) == name) {
-				found = true;
-			}
-			obs_data_release(item);
-		}
-		if (!found) {
-			verticalCanvasOutputLayout->removeWidget(streamGroup);
-			RemoveWidget(streamGroup);
-		} else {
-			idx++;
-		}
+		verticalCanvasOutputLayout->removeWidget(streamGroup);
+		RemoveWidget(streamGroup);
 	}
 
 	obs_data_array_enum(
-		outputs,
+		vertical_outputs,
 		[](obs_data_t *data, void *param) {
 			auto d = (MultistreamDock *)param;
 			d->LoadOutput(data, true);
 		},
 		this);
-	obs_data_array_release(outputs);
 }
 
 void MultistreamDock::storeMainStreamEncoders()

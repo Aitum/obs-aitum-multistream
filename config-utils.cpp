@@ -9,6 +9,9 @@
 #include <QWidget>
 #include <QIcon>
 #include <QToolButton>
+#include <QPainter>
+#include <QPixmap>
+#include <QFont>
 
 #include "obs.h"
 #include "obs-module.h"
@@ -48,6 +51,20 @@ QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon)
 		"min-width: 110px; max-width: 110px; min-height: 90px; max-height: 90px; padding-top: 16px; font-weight: bold;");
 
 	return button;
+}
+
+// Generate QIcon from emoji
+QIcon ConfigUtils::generateEmojiQIcon(QString emoji) {
+	QPixmap pixmap(32, 32);
+	pixmap.fill(Qt::transparent);
+	
+	QPainter painter(&pixmap);
+	QFont font = painter.font();
+	font.setPixelSize(32);
+	painter.setFont(font);
+	painter.drawText(pixmap.rect(), Qt::AlignCenter, emoji);
+	
+	return QIcon(pixmap);
 }
 
 // For setting the active property stuff on buttons

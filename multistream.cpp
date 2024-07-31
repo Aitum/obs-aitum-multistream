@@ -309,6 +309,14 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	buttonRow->addWidget(configButton);
 
+	// Contribute Button
+	auto contributeButton = new QPushButton;
+	contributeButton->setMinimumHeight(30);
+	contributeButton->setIcon(ConfigUtils::generateEmojiQIcon("❤️"));
+	contributeButton->setToolTip(QString::fromUtf8(obs_module_text("AitumMultistreamDonate")));
+	QPushButton::connect(contributeButton, &QPushButton::clicked, [] { QDesktopServices::openUrl(QUrl("https://aitum.tv/contribute")); });
+	buttonRow->addWidget(contributeButton);
+	
 	// Aitum Button
 	auto aitumButton = new QPushButton;
 	aitumButton->setMinimumHeight(30);

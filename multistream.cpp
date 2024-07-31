@@ -55,7 +55,6 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 
 bool obs_module_load(void)
 {
-	//return true;
 	blog(LOG_INFO, "[Aitum-Multistream] loaded version %s", PROJECT_VERSION);
 
 	const auto main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());

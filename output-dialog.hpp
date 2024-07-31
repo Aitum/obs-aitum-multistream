@@ -54,10 +54,11 @@ private:
 	obs_data_t *getService(std::string serviceName);
 
 	QStackedWidget *stackedWidget;
+	QStringList otherNames;
 
 public:
-	OutputDialog(QDialog *parent);
-	OutputDialog(QDialog *parent, QString name, QString server, QString key);
+	OutputDialog(QDialog *parent, QStringList otherNames);
+	OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList otherNames);
 
 	QString outputName;
 	QString outputServer;

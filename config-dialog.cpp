@@ -196,7 +196,19 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
 
 	connect(addButton, &QPushButton::clicked, [this] {
-		auto outputDialog = new OutputDialog(this);
+		QStringList otherNames;
+		auto outputs = obs_data_get_array(settings, "outputs");
+		obs_data_array_enum(
+			outputs,
+			[](obs_data_t *data, void *param) {
+				auto otherNames = (QStringList *)param;
+				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			},
+			&otherNames);
+		obs_data_array_release(outputs);
+		otherNames.removeDuplicates();
+		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
+		auto outputDialog = new OutputDialog(this, otherNames);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
@@ -282,7 +294,17 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	verticalAddButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
 
 	connect(verticalAddButton, &QPushButton::clicked, [this] {
-		auto outputDialog = new OutputDialog(this);
+		QStringList otherNames;
+		obs_data_array_enum(
+			vertical_outputs,
+			[](obs_data_t *data, void *param) {
+				auto otherNames = (QStringList *)param;
+				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			},
+			&otherNames);
+		otherNames.removeDuplicates();
+		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
+		auto outputDialog = new OutputDialog(this, otherNames);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
@@ -875,10 +897,20 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto editButton = new QPushButton(QString::fromUtf8(obs_module_text("EditServerSettings")));
 	editButton->setProperty("themeID", "configIconSmall");
 
-	connect(editButton, &QPushButton::clicked, [this, settings] {
+	connect(editButton, &QPushButton::clicked, [this, settings, outputs] {
+		QStringList otherNames;
+		obs_data_array_enum(
+			outputs,
+			[](obs_data_t *data, void *param) {
+				auto otherNames = (QStringList *)param;
+				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			},
+			&otherNames);
+		otherNames.removeDuplicates();
+		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
 		auto outputDialog = new OutputDialog(this, obs_data_get_string(settings, "name"),
 						     obs_data_get_string(settings, "stream_server"),
-						     obs_data_get_string(settings, "stream_key"));
+						     obs_data_get_string(settings, "stream_key"), otherNames);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);

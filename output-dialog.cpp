@@ -33,7 +33,7 @@ void OutputDialog::acceptOutputs()
 void OutputDialog::validateOutputs(QPushButton *confirmButton)
 {
 
-	if (outputName.isEmpty()) {
+	if (outputName.isEmpty() || otherNames.contains(outputName)) {
 		confirmButton->setEnabled(false);
 	} else if (outputServer.isEmpty()) {
 		confirmButton->setEnabled(false);
@@ -241,7 +241,7 @@ obs_data_t *OutputDialog::getService(std::string serviceName)
 	return nullptr;
 }
 
-OutputDialog::OutputDialog(QDialog *parent) : QDialog(parent)
+OutputDialog::OutputDialog(QDialog *parent, QStringList _otherNames) : QDialog(parent), otherNames(_otherNames)
 {
 	// Load the services from rtmp-services plugin
 	auto servicesPath = obs_module_get_config_path(obs_get_module("rtmp-services"), "services.json");
@@ -293,7 +293,9 @@ OutputDialog::OutputDialog(QDialog *parent) : QDialog(parent)
 }
 
 // Edit mode
-OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QString key) : QDialog(parent)
+OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList _otherNames)
+	: QDialog(parent),
+	  otherNames(_otherNames)
 {
 
 	// Load the services from rtmp-services plugin

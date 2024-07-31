@@ -170,13 +170,31 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	scrollArea->setFrameShape(QFrame::NoFrame);
 	settingsPages->addWidget(scrollArea);
 
+	// Help page
 	auto helpPage = new QWidget;
+	auto helpPageLayout = new QVBoxLayout;
+	helpPage->setLayout(helpPageLayout);
 	scrollArea = new QScrollArea;
 	scrollArea->setWidget(helpPage);
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
+	
+	auto helpInfoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("HelpTitle")));
+	helpInfoBox->setStyleSheet("padding-top: 12px");
+	auto helpLayout = new QVBoxLayout;
+	helpInfoBox->setLayout(helpLayout);
+	
+	auto helpLabel = new QLabel(QString::fromUtf8(obs_module_text("HelpText")));
+	helpLabel->setStyleSheet("font-size: 14px");
+	helpLabel->setWordWrap(true);
+	helpLabel->setTextFormat(Qt::RichText);
+	helpLabel->setOpenExternalLinks(true);
+	helpLayout->addWidget(helpLabel, 1);
+	helpPageLayout->addWidget(helpInfoBox, 1, Qt::AlignTop);
+	
 	settingsPages->addWidget(scrollArea);
+	
 
 	//mainOutputsPage
 

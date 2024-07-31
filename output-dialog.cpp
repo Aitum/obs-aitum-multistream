@@ -14,6 +14,7 @@
 #include <QSizePolicy>
 #include "obs-module.h"
 #include "util/platform.h"
+#include "stream-key-input.hpp"
 
 // Reset output values, e.g. when user hits the back button
 void OutputDialog::resetOutputs()
@@ -150,12 +151,25 @@ QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushBut
 // Helper for generating output key field
 QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton, bool edit)
 {
-	auto field = new QLineEdit;
+	auto field = new StreamKeyInput;
 	field->setStyleSheet("padding: 4px 8px;");
 
 	if (edit) { // edit mode, set field value from output value
 		field->setText(outputKey);
 	}
+	
+	// Immediately hide
+	field->setEchoMode(StreamKeyInput::EchoMode::Password);
+	
+	// On focus, show field
+	connect(field, &StreamKeyInput::focusGained, [this, field] {
+		field->setEchoMode(StreamKeyInput::EchoMode::Normal);
+	});
+	
+	// On blur, hide field
+	connect(field, &StreamKeyInput::focusLost, [this, field] {
+		field->setEchoMode(StreamKeyInput::EchoMode::Password);
+	});
 
 	connect(field, &QLineEdit::textEdited, [this, field, confirmButton] {
 		outputKey = field->text();

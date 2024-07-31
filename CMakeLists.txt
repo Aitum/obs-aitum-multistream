@@ -54,12 +54,14 @@ target_sources(${PROJECT_NAME} PRIVATE
   config-dialog.cpp
   config-utils.cpp
   output-dialog.cpp
+  stream-key-input.cpp
   multistream.cpp
   file-updater.c
 	resources.qrc
 	config-dialog.hpp
 	config-utils.hpp
 	output-dialog.hpp
+	stream-key-input.hpp
     multistream.hpp
 	file-updater.h)
 

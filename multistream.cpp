@@ -954,7 +954,6 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	vertical_outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 
 	calldata_free(&cd);
-	auto count = obs_data_array_count(vertical_outputs);
 	int idx = 0;
 	while (auto item = verticalCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();

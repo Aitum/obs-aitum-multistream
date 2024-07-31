@@ -112,7 +112,7 @@ void MultistreamDock::outputButtonStyle(QPushButton *button)
 {
 	button->setMinimumHeight(24);
 
-	std::string baseStyles = "min-width: 30px; padding: 2px 10px; ";
+	std::string baseStyles = "min-width: 30px; padding: 2px 10px; border-width: 2px;";
 
 	button->setStyleSheet(QString::fromUtf8(baseStyles + (button->isChecked() ? "background: rgb(0,210,153);" : "")));
 
@@ -192,7 +192,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	auto bisHeaderLabel = new QLabel(QString::fromUtf8(obs_module_text("BuiltinStream")));
 	bisHeaderLabel->setStyleSheet(outputTitleStyle);
 
-	// blank because we're not pulling settings through from bis, fix this
+	// blank because we're pulling settings through from bis later
 	mainPlatformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(""));
 

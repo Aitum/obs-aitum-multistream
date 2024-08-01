@@ -85,7 +85,7 @@ QIcon ConfigUtils::getPlatformIconFromEndpoint(QString endpoint)
 		return QIcon(":/aitum/media/youtube.png");
 	} else if (endpoint.contains(QString::fromUtf8("fa723fc1b171.global-contribute.live-video.net"))) { // kick
 		return QIcon(":/aitum/media/kick.png");
-	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn-"))) { // tiktok
+	} else if (endpoint.contains(QString::fromUtf8(".tiktokcdn"))) { // tiktok
 		return QIcon(":/aitum/media/tiktok.png");
 	} else if (endpoint.contains(QString::fromUtf8(".pscp.tv"))) { // twitter
 		return QIcon(":/aitum/media/twitter.png");

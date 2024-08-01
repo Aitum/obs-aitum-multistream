@@ -45,11 +45,24 @@ runs:
       shell: bash
       run: |
         : Install Dependencies 🛍️
-        echo ::group::Install Dependencies
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-        echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
-        brew install --quiet zsh
-        echo ::endgroup::
+        sudo apt install \
+         zsh \
+         libasound2-dev \
+         libfdk-aac-dev \
+         libfontconfig-dev \
+         libfreetype6-dev \
+         libjack-jackd2-dev \
+         libpulse-dev libsndio-dev \
+         libspeexdsp-dev \
+         libudev-dev \
+         libv4l-dev \
+         libva-dev \
+         libvlc-dev \
+         libvpl-dev \
+         libdrm-dev \
+         nlohmann-json3-dev \
+         libwebsocketpp-dev \
+         libasio-dev
 
     - name: Run Ubuntu Build
       if: runner.os == 'Linux'

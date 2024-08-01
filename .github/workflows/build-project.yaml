@@ -170,7 +170,6 @@ jobs:
     name: Build for Ubuntu 🐧
     runs-on: ubuntu-24.04
     needs: check-event
-    if: false
     defaults:
       run:
         shell: bash

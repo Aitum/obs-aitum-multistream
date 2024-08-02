@@ -588,7 +588,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	// VIDEO ENCODER
 	auto videoEncoder = new QComboBox;
-	videoEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")), QVariant(QString::fromUtf8("")));
+	videoEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")),
+			      QVariant(QString::fromUtf8("")));
 
 	videoEncoder->setCurrentIndex(0);
 	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
@@ -663,28 +664,29 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		auto downscale = new QComboBox;
 
 		auto downscale_type = obs_data_get_int(settings, "scale_type");
-		downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Output.Adv.Rescale.Disabled")),
-				   OBS_SCALE_DISABLE);
-		downscale->setCurrentIndex(0);
+		if (downscale_type == OBS_SCALE_DISABLE) {
+			downscale_type = OBS_SCALE_BILINEAR;
+			obs_data_set_int(settings, "scale_type", downscale_type);
+		}
 		downscale->addItem(
 			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bilinear")),
 			OBS_SCALE_BILINEAR);
 		if (downscale_type == OBS_SCALE_BILINEAR)
-			downscale->setCurrentIndex(1);
+			downscale->setCurrentIndex(0);
 		downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Area")),
 				   OBS_SCALE_AREA);
 		if (downscale_type == OBS_SCALE_AREA)
-			downscale->setCurrentIndex(2);
+			downscale->setCurrentIndex(1);
 		downscale->addItem(
 			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bicubic")),
 			OBS_SCALE_BICUBIC);
 		if (downscale_type == OBS_SCALE_BICUBIC)
-			downscale->setCurrentIndex(3);
+			downscale->setCurrentIndex(2);
 		downscale->addItem(
 			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Lanczos")),
 			OBS_SCALE_LANCZOS);
 		if (downscale_type == OBS_SCALE_LANCZOS)
-			downscale->setCurrentIndex(4);
+			downscale->setCurrentIndex(3);
 
 		connect(downscale, &QComboBox::currentIndexChanged,
 			[downscale, settings] { obs_data_set_int(settings, "scale_type", downscale->currentData().toInt()); });
@@ -785,7 +787,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		videoEncoderGroup->setVisible(false);
 
 	auto audioEncoder = new QComboBox;
-	audioEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")), QVariant(QString::fromUtf8("")));
+	audioEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")),
+			      QVariant(QString::fromUtf8("")));
 	audioEncoder->setCurrentIndex(0);
 	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoder")), audioEncoder);
 

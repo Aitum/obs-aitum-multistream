@@ -524,9 +524,9 @@ void MultistreamDock::LoadSettings()
 
 	obs_data_array_enum(
 		outputs,
-		[](obs_data_t *data, void *param) {
+		[](obs_data_t *data2, void *param) {
 			auto d = (MultistreamDock *)param;
-			d->LoadOutput(data, false);
+			d->LoadOutput(data2, false);
 		},
 		this);
 	obs_data_array_release(outputs);
@@ -971,9 +971,9 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 
 	obs_data_array_enum(
 		vertical_outputs,
-		[](obs_data_t *data, void *param) {
+		[](obs_data_t *data2, void *param) {
 			auto d = (MultistreamDock *)param;
-			d->LoadOutput(data, true);
+			d->LoadOutput(data2, true);
 		},
 		this);
 }

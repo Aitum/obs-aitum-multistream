@@ -179,12 +179,12 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setLineWidth(0);
 	scrollArea->setFrameShape(QFrame::NoFrame);
-	
+
 	auto helpInfoBox = ConfigUtils::generateSettingsGroupBox(QString::fromUtf8(obs_module_text("HelpTitle")));
 	helpInfoBox->setStyleSheet("padding-top: 12px");
 	auto helpLayout = new QVBoxLayout;
 	helpInfoBox->setLayout(helpLayout);
-	
+
 	auto helpLabel = new QLabel(QString::fromUtf8(obs_module_text("HelpText")));
 	helpLabel->setStyleSheet("font-size: 14px");
 	helpLabel->setWordWrap(true);
@@ -192,9 +192,8 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	helpLabel->setOpenExternalLinks(true);
 	helpLayout->addWidget(helpLabel, 1);
 	helpPageLayout->addWidget(helpInfoBox, 1, Qt::AlignTop);
-	
+
 	settingsPages->addWidget(scrollArea);
-	
 
 	//mainOutputsPage
 
@@ -215,17 +214,15 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	connect(addButton, &QPushButton::clicked, [this] {
 		QStringList otherNames;
-		auto outputs = obs_data_get_array(settings, "outputs");
+		auto outputs = obs_data_get_array(main_settings, "outputs");
 		obs_data_array_enum(
 			outputs,
-			[](obs_data_t *data, void *param) {
-				auto otherNames = (QStringList *)param;
-				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			[](obs_data_t *data2, void *param) {
+				((QStringList *)param)->append(QString::fromUtf8(obs_data_get_string(data2, "name")));
 			},
 			&otherNames);
 		obs_data_array_release(outputs);
 		otherNames.removeDuplicates();
-		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
 		auto outputDialog = new OutputDialog(this, otherNames);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
@@ -233,12 +230,12 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 		if (outputDialog->exec() == QDialog::Accepted) {
 			// create a new output
-			if (!settings)
+			if (!main_settings)
 				return;
-			auto outputs = obs_data_get_array(settings, "outputs");
+			auto outputs = obs_data_get_array(main_settings, "outputs");
 			if (!outputs) {
 				outputs = obs_data_array_create();
-				obs_data_set_array(settings, "outputs", outputs);
+				obs_data_set_array(main_settings, "outputs", outputs);
 			}
 			auto s = obs_data_create();
 
@@ -315,13 +312,11 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 		QStringList otherNames;
 		obs_data_array_enum(
 			vertical_outputs,
-			[](obs_data_t *data, void *param) {
-				auto otherNames = (QStringList *)param;
-				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			[](obs_data_t *data2, void *param) {
+				((QStringList *)param)->append(QString::fromUtf8(obs_data_get_string(data2, "name")));
 			},
 			&otherNames);
 		otherNames.removeDuplicates();
-		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
 		auto outputDialog = new OutputDialog(this, otherNames);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
@@ -595,29 +590,34 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	videoEncoder->setCurrentIndex(0);
 	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
 
+	const bool main = outputsLayout == mainOutputsLayout;
 	bool allEmpty = false;
-	auto videoEncoderIndex = new QComboBox;
-	for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
-		QString settingName = QString::fromUtf8("video_encoder_description") + QString::number(i);
-		auto description = obs_data_get_string(this->settings, settingName.toUtf8().constData());
-		if (!description || description[0] == '\0') {
-			if (i != 0 && !allEmpty) {
-				break;
+	QComboBox *videoEncoderIndex = nullptr;
+	if (main) {
+		videoEncoderIndex = new QComboBox;
+		for (int i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
+			QString settingName = QString::fromUtf8("video_encoder_description") + QString::number(i);
+			auto description = obs_data_get_string(main_settings, settingName.toUtf8().constData());
+			if (!description || description[0] == '\0') {
+				if (i != 0 && !allEmpty) {
+					break;
+				}
+				allEmpty = true;
 			}
-			allEmpty = true;
+			videoEncoderIndex->addItem(QString::number(i + 1) + " " + description);
 		}
-		videoEncoderIndex->addItem(QString::number(i + 1) + " " + description);
-	}
-	videoEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "video_encoder_index"));
-	connect(videoEncoderIndex, &QComboBox::currentIndexChanged, [videoEncoderIndex, settings] {
-		if (videoEncoderIndex->currentIndex() >= 0)
-			obs_data_set_int(settings, "video_encoder_index", videoEncoderIndex->currentIndex());
-	});
-	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
+		videoEncoderIndex->setCurrentIndex((int)obs_data_get_int(settings, "video_encoder_index"));
 
-	if (videoEncoderIndex->currentIndex() != 0 ||
-	    !config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo"))
-		videoPageLayout->setRowVisible(videoEncoderIndex, false);
+		connect(videoEncoderIndex, &QComboBox::currentIndexChanged, [videoEncoderIndex, settings] {
+			if (videoEncoderIndex->currentIndex() >= 0)
+				obs_data_set_int(settings, "video_encoder_index", videoEncoderIndex->currentIndex());
+		});
+		videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
+
+		if (videoEncoderIndex->currentIndex() != 0 ||
+		    !config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo"))
+			videoPageLayout->setRowVisible(videoEncoderIndex, false);
+	}
 
 	auto videoEncoderGroup = new QWidget();
 	videoEncoderGroup->setProperty("altColor", QVariant(true));
@@ -625,7 +625,6 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	videoEncoderGroup->setLayout(videoEncoderGroupLayout);
 	videoPageLayout->addRow(videoEncoderGroup);
 
-	const bool main = outputsLayout == mainOutputsLayout;
 	if (main) {
 		struct obs_video_info ovi;
 		obs_get_video_info(&ovi);
@@ -723,7 +722,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			auto encoder = encoder_string.constData();
 			obs_data_set_string(settings, "video_encoder", encoder);
 			if (!encoder || encoder[0] == '\0') {
-				if (config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo")) {
+				if (!videoEncoderIndex) {
+				} else if (config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo")) {
 					videoPageLayout->setRowVisible(videoEncoderIndex, true);
 				} else {
 					videoPageLayout->setRowVisible(videoEncoderIndex, false);
@@ -732,7 +732,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				}
 				videoEncoderGroup->setVisible(false);
 			} else {
-				videoPageLayout->setRowVisible(videoEncoderIndex, false);
+				if (videoEncoderIndex)
+					videoPageLayout->setRowVisible(videoEncoderIndex, false);
 				if (!videoEncoderGroup->isVisibleTo(videoPage))
 					videoEncoderGroup->setVisible(true);
 				auto t = video_encoder_properties.find(serverGroup);
@@ -792,7 +793,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	for (int i = 0; i < 6; i++) {
 		audioTrack->addItem(QString::number(i + 1));
 	}
-	audioTrack->setCurrentIndex(obs_data_get_int(settings, "audio_track"));
+	audioTrack->setCurrentIndex((int)obs_data_get_int(settings, "audio_track"));
 	connect(audioTrack, &QComboBox::currentIndexChanged, [audioTrack, settings] {
 		if (audioTrack->currentIndex() >= 0)
 			obs_data_set_int(settings, "audio_track", audioTrack->currentIndex());
@@ -803,7 +804,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	for (int i = 0; i < MAX_OUTPUT_AUDIO_ENCODERS; i++) {
 		audioEncoderIndex->addItem(QString::number(i + 1));
 	}
-	audioEncoderIndex->setCurrentIndex(obs_data_get_int(settings, "audio_encoder_index"));
+	audioEncoderIndex->setCurrentIndex((int)obs_data_get_int(settings, "audio_encoder_index"));
 	connect(audioEncoderIndex, &QComboBox::currentIndexChanged, [audioEncoderIndex, settings] {
 		if (audioEncoderIndex->currentIndex() >= 0)
 			obs_data_set_int(settings, "audio_encoder_index", audioEncoderIndex->currentIndex());
@@ -882,9 +883,9 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	advancedButton->setCheckable(true);
 	advancedButton->setChecked(advanced);
 	connect(advancedButton, &QPushButton::clicked, [advancedButton, advancedGroup, settings] {
-		const bool advanced = advancedButton->isChecked();
-		advancedGroup->setVisible(advanced);
-		obs_data_set_bool(settings, "advanced", advanced);
+		const bool is_advanced = advancedButton->isChecked();
+		advancedGroup->setVisible(is_advanced);
+		obs_data_set_bool(settings, "advanced", is_advanced);
 	});
 
 	// Hook up
@@ -919,9 +920,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		QStringList otherNames;
 		obs_data_array_enum(
 			outputs,
-			[](obs_data_t *data, void *param) {
-				auto otherNames = (QStringList *)param;
-				otherNames->append(QString::fromUtf8(obs_data_get_string(data, "name")));
+			[](obs_data_t *data2, void *param) {
+				((QStringList *)param)->append(QString::fromUtf8(obs_data_get_string(data2, "name")));
 			},
 			&otherNames);
 		otherNames.removeDuplicates();
@@ -943,7 +943,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			obs_data_set_string(settings, "stream_key", outputDialog->outputKey.toUtf8().constData());
 
 			// Reload
-			LoadSettings(this->settings);
+			LoadSettings(main_settings);
 			LoadVerticalSettings(false);
 		}
 
@@ -988,9 +988,9 @@ void OBSBasicSettings::LoadVerticalSettings(bool load)
 	}
 	obs_data_array_enum(
 		vertical_outputs,
-		[](obs_data_t *data, void *param) {
+		[](obs_data_t *data2, void *param) {
 			auto d = (OBSBasicSettings *)param;
-			d->AddServer(d->verticalOutputsLayout, data, d->vertical_outputs);
+			d->AddServer(d->verticalOutputsLayout, data2, d->vertical_outputs);
 		},
 		this);
 }
@@ -1014,15 +1014,15 @@ void OBSBasicSettings::LoadSettings(obs_data_t *settings)
 		RemoveLayoutItem(i);
 		mainOutputsLayout->removeRow(2);
 	}
-	this->settings = settings;
+	main_settings = settings;
 	auto outputs = obs_data_get_array(settings, "outputs");
 	obs_data_array_enum(
 		outputs,
-		[](obs_data_t *data, void *param) {
+		[](obs_data_t *data2, void *param) {
 			auto d = (OBSBasicSettings *)param;
-			auto outputs = obs_data_get_array(d->settings, "outputs");
-			d->AddServer(d->mainOutputsLayout, data, outputs);
-			obs_data_array_release(outputs);
+			auto outputs2 = obs_data_get_array(d->main_settings, "outputs");
+			d->AddServer(d->mainOutputsLayout, data2, outputs2);
+			obs_data_array_release(outputs2);
 		},
 		this);
 	obs_data_array_release(outputs);
@@ -1311,8 +1311,8 @@ void OBSBasicSettings::LoadOutputStats(std::vector<video_t *> *oldVideos)
 	}
 	std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> refs;
 	obs_enum_outputs(
-		[](void *data, obs_output_t *output) {
-			auto refs = (std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> *)data;
+		[](void *param, obs_output_t *output) {
+			auto refs2 = (std::vector<std::tuple<video_t *, obs_encoder_t *, obs_output_t *>> *)param;
 			auto ec = 0;
 			for (size_t i = 0; i < MAX_OUTPUT_VIDEO_ENCODERS; i++) {
 				auto venc = obs_output_get_video_encoder2(output, i);
@@ -1323,11 +1323,11 @@ void OBSBasicSettings::LoadOutputStats(std::vector<video_t *> *oldVideos)
 										  : obs_encoder_video(venc);
 				if (!video)
 					video = obs_output_video(output);
-				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
+				refs2->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(video, venc, output));
 			}
 			if (!ec) {
-				refs->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
-												       nullptr, output));
+				refs2->push_back(std::tuple<video_t *, obs_encoder_t *, obs_output_t *>(obs_output_video(output),
+													nullptr, output));
 			}
 			return true;
 		},

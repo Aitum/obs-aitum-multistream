@@ -42,7 +42,7 @@ private:
 	void AddProperty(obs_properties_t *properties, obs_property_t *property, obs_data_t *settings, QFormLayout *layout);
 	void RefreshProperties(obs_properties_t *properties, QFormLayout *layout);
 
-	obs_data_t *settings = nullptr;
+	obs_data_t *main_settings = nullptr;
 	obs_data_array_t *vertical_outputs = nullptr;
 
 	std::map<obs_property_t *, QWidget *> encoder_property_widgets;

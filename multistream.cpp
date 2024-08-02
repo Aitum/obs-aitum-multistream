@@ -211,8 +211,23 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	connect(mainStreamButton, &QPushButton::clicked, [this] {
 		if (obs_frontend_streaming_active()) {
-			obs_frontend_streaming_stop();
-			mainStreamButton->setChecked(false);
+			bool stop = true;
+			bool warnBeforeStreamStop =
+				config_get_bool(obs_frontend_get_global_config(), "BasicWindow", "WarnBeforeStoppingStream");
+			if (warnBeforeStreamStop && isVisible()) {
+				auto button = QMessageBox::question(
+					this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Title")),
+					QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Text")),
+					QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+				if (button == QMessageBox::No)
+					stop = false;
+			}
+			if (stop) {
+				obs_frontend_streaming_stop();
+				mainStreamButton->setChecked(false);
+			} else {
+				mainStreamButton->setChecked(true);
+			}
 		} else {
 			bool warnBeforeStreamStart =
 				config_get_bool(obs_frontend_get_global_config(), "BasicWindow", "WarnBeforeStartingStream");
@@ -630,7 +645,22 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 				if (!start || !proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd))
 					streamButton->setChecked(false);
 			} else {
-				proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
+				bool stop = true;
+				bool warnBeforeStreamStop = config_get_bool(obs_frontend_get_global_config(), "BasicWindow",
+									    "WarnBeforeStoppingStream");
+				if (warnBeforeStreamStop && isVisible()) {
+					auto button = QMessageBox::question(
+						this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Title")),
+						QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Text")),
+						QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+					if (button == QMessageBox::No)
+						stop = false;
+				}
+				if (stop) {
+					proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
+				} else {
+					streamButton->setChecked(true);
+				}
 			}
 			calldata_free(&cd);
 
@@ -642,13 +672,31 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 				if (!StartOutput(output_data, streamButton))
 					streamButton->setChecked(false);
 			} else {
-				const char *name2 = obs_data_get_string(output_data, "name");
-				for (auto it = outputs.begin(); it != outputs.end(); it++) {
-					if (std::get<std::string>(*it) != name2)
-						continue;
-					obs_queue_task(
-						OBS_TASK_GRAPHICS, [](void *param) { obs_output_stop((obs_output_t *)param); },
-						std::get<obs_output *>(*it), false);
+				bool stop = true;
+				bool warnBeforeStreamStop = config_get_bool(obs_frontend_get_global_config(), "BasicWindow",
+									    "WarnBeforeStoppingStream");
+				if (warnBeforeStreamStop && isVisible()) {
+					auto button = QMessageBox::question(
+						this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Title")),
+						QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Text")),
+						QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+					if (button == QMessageBox::No)
+						stop = false;
+				}
+				if (stop) {
+
+					const char *name2 = obs_data_get_string(output_data, "name");
+					for (auto it = outputs.begin(); it != outputs.end(); it++) {
+						if (std::get<std::string>(*it) != name2)
+							continue;
+
+						obs_queue_task(
+							OBS_TASK_GRAPHICS,
+							[](void *param) { obs_output_stop((obs_output_t *)param); },
+							std::get<obs_output *>(*it), false);
+					}
+				} else {
+					streamButton->setChecked(true);
 				}
 			}
 			outputButtonStyle(streamButton);

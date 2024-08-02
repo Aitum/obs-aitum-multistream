@@ -314,9 +314,10 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	contributeButton->setMinimumHeight(30);
 	contributeButton->setIcon(ConfigUtils::generateEmojiQIcon("❤️"));
 	contributeButton->setToolTip(QString::fromUtf8(obs_module_text("AitumMultistreamDonate")));
-	QPushButton::connect(contributeButton, &QPushButton::clicked, [] { QDesktopServices::openUrl(QUrl("https://aitum.tv/contribute")); });
+	QPushButton::connect(contributeButton, &QPushButton::clicked,
+			     [] { QDesktopServices::openUrl(QUrl("https://aitum.tv/contribute")); });
 	buttonRow->addWidget(contributeButton);
-	
+
 	// Aitum Button
 	auto aitumButton = new QPushButton;
 	aitumButton->setMinimumHeight(30);
@@ -346,8 +347,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		auto url = QString::fromUtf8(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL));
 		if (url != mainPlatformUrl) {
 			mainPlatformUrl = url;
-			auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(url);
-			mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(30, 30));
 		}
 
 		int idx = 0;
@@ -514,7 +514,8 @@ void MultistreamDock::LoadSettingsFile()
 
 void MultistreamDock::LoadSettings()
 {
-	auto outputs = obs_data_get_array(current_config, "outputs");
+
+	auto outputs2 = obs_data_get_array(current_config, "outputs");
 	int idx = 1;
 	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
@@ -523,18 +524,18 @@ void MultistreamDock::LoadSettings()
 	}
 
 	obs_data_array_enum(
-		outputs,
+		outputs2,
 		[](obs_data_t *data2, void *param) {
 			auto d = (MultistreamDock *)param;
 			d->LoadOutput(data2, false);
 		},
 		this);
-	obs_data_array_release(outputs);
+	obs_data_array_release(outputs2);
 }
 
-void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
+void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 {
-	auto nameChars = obs_data_get_string(data, "name");
+	auto nameChars = obs_data_get_string(output_data, "name");
 	auto name = QString::fromUtf8(nameChars);
 	if (vertical) {
 		for (int i = 0; i < verticalCanvasOutputLayout->count(); i++) {
@@ -557,12 +558,12 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		if (std::get<std::string>(*it) != nameChars)
 			continue;
-		if (obs_data_get_bool(data, "advanced")) {
+		if (obs_data_get_bool(output_data, "advanced")) {
 			auto output = std::get<obs_output_t *>(*it);
 			auto video_encoder = obs_output_get_video_encoder(output);
 			if (video_encoder &&
-			    strcmp(obs_encoder_get_id(video_encoder), obs_data_get_string(data, "video_encoder")) == 0) {
-				auto ves = obs_data_get_obj(data, "video_encoder_settings");
+			    strcmp(obs_encoder_get_id(video_encoder), obs_data_get_string(output_data, "video_encoder")) == 0) {
+				auto ves = obs_data_get_obj(output_data, "video_encoder_settings");
 				obs_encoder_update(video_encoder, ves);
 				obs_data_release(ves);
 			}
@@ -576,7 +577,7 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 
 	auto l2 = new QHBoxLayout;
 
-	auto endpoint = QString::fromUtf8(obs_data_get_string(data, "stream_server"));
+	auto endpoint = QString::fromUtf8(obs_data_get_string(output_data, "stream_server"));
 	auto platformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(endpoint);
 
@@ -594,11 +595,12 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 	outputButtonStyle(streamButton);
 
 	if (vertical) {
-		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
+		std::string output_name = obs_data_get_string(output_data, "name");
+		connect(streamButton, &QPushButton::clicked, [this, streamButton, output_name] {
 			auto ph = obs_get_proc_handler();
 			struct calldata cd;
 			calldata_init(&cd);
-			calldata_set_string(&cd, "name", obs_data_get_string(data, "name"));
+			calldata_set_string(&cd, "name", output_name.c_str());
 			if (streamButton->isChecked()) {
 				if (!proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd))
 					streamButton->setChecked(false);
@@ -610,14 +612,14 @@ void MultistreamDock::LoadOutput(obs_data_t *data, bool vertical)
 			outputButtonStyle(streamButton);
 		});
 	} else {
-		connect(streamButton, &QPushButton::clicked, [this, streamButton, data] {
+		connect(streamButton, &QPushButton::clicked, [this, streamButton, output_data] {
 			if (streamButton->isChecked()) {
-				if (!StartOutput(data, streamButton))
+				if (!StartOutput(output_data, streamButton))
 					streamButton->setChecked(false);
 			} else {
-				const char *name = obs_data_get_string(data, "name");
+				const char *name2 = obs_data_get_string(output_data, "name");
 				for (auto it = outputs.begin(); it != outputs.end(); it++) {
-					if (std::get<std::string>(*it) != name)
+					if (std::get<std::string>(*it) != name2)
 						continue;
 					obs_queue_task(
 						OBS_TASK_GRAPHICS, [](void *param) { obs_output_stop((obs_output_t *)param); },
@@ -763,12 +765,12 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			obs_encoder_set_video(venc, obs_get_video());
 			auto divisor = obs_data_get_int(settings, "frame_rate_divisor");
 			if (divisor > 1)
-				obs_encoder_set_frame_rate_divisor(venc, divisor);
+				obs_encoder_set_frame_rate_divisor(venc, (uint32_t)divisor);
 
 			bool scale = obs_data_get_bool(settings, "scale");
 			if (scale) {
-				obs_encoder_set_scaled_size(venc, obs_data_get_int(settings, "width"),
-							    obs_data_get_int(settings, "height"));
+				obs_encoder_set_scaled_size(venc, (uint32_t)obs_data_get_int(settings, "width"),
+							    (uint32_t)obs_data_get_int(settings, "height"));
 				obs_encoder_set_gpu_scale_type(venc, (obs_scale_type)obs_data_get_int(settings, "scale_type"));
 			}
 		}
@@ -866,7 +868,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		obs_data_release(output_settings);
 
 		bool useDelay = config_get_bool(config, "Output", "DelayEnable");
-		int delaySec = config_get_int(config, "Output", "DelaySec");
+		auto delaySec = (uint32_t)config_get_int(config, "Output", "DelaySec");
 		bool preserveDelay = config_get_bool(config, "Output", "DelayPreserve");
 		obs_output_set_delay(output, useDelay ? delaySec : 0, preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0);
 	}

@@ -214,14 +214,14 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	connect(addButton, &QPushButton::clicked, [this] {
 		QStringList otherNames;
-		auto outputs = obs_data_get_array(main_settings, "outputs");
+		auto main_outputs = obs_data_get_array(main_settings, "outputs");
 		obs_data_array_enum(
-			outputs,
+			main_outputs,
 			[](obs_data_t *data2, void *param) {
 				((QStringList *)param)->append(QString::fromUtf8(obs_data_get_string(data2, "name")));
 			},
 			&otherNames);
-		obs_data_array_release(outputs);
+		obs_data_array_release(main_outputs);
 		otherNames.removeDuplicates();
 		auto outputDialog = new OutputDialog(this, otherNames);
 
@@ -584,13 +584,15 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto audioPageLayout = new QFormLayout;
 	audioPage->setLayout(audioPageLayout);
 
+	const bool main = outputsLayout == mainOutputsLayout;
+
 	// VIDEO ENCODER
 	auto videoEncoder = new QComboBox;
-	videoEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
+	videoEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")), QVariant(QString::fromUtf8("")));
+
 	videoEncoder->setCurrentIndex(0);
 	videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoder")), videoEncoder);
 
-	const bool main = outputsLayout == mainOutputsLayout;
 	bool allEmpty = false;
 	QComboBox *videoEncoderIndex = nullptr;
 	if (main) {
@@ -783,7 +785,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		videoEncoderGroup->setVisible(false);
 
 	auto audioEncoder = new QComboBox;
-	audioEncoder->addItem(QString::fromUtf8(obs_module_text("MainEncoder")), QVariant(QString::fromUtf8("")));
+	audioEncoder->addItem(QString::fromUtf8(obs_module_text(main ? "MainEncoder" : "VerticalEncoder")), QVariant(QString::fromUtf8("")));
 	audioEncoder->setCurrentIndex(0);
 	audioPageLayout->addRow(QString::fromUtf8(obs_module_text("AudioEncoder")), audioEncoder);
 

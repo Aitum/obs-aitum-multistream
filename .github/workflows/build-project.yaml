@@ -168,9 +168,8 @@ jobs:
 
   ubuntu-build:
     name: Build for Ubuntu 🐧
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: check-event
-    if: false
     defaults:
       run:
         shell: bash
@@ -199,9 +198,6 @@ jobs:
           key: ${{ runner.os }}-ccache-x86_64-${{ needs.check-event.outputs.config }}
           restore-keys: |
             ${{ runner.os }}-ccache-x86_64-
-
-      - name: Set up Homebrew 🍺
-        uses: Homebrew/actions/setup-homebrew@master
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin

@@ -214,7 +214,21 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			obs_frontend_streaming_stop();
 			mainStreamButton->setChecked(false);
 		} else {
-			obs_frontend_streaming_start();
+			bool warnBeforeStreamStart =
+				config_get_bool(obs_frontend_get_global_config(), "BasicWindow", "WarnBeforeStartingStream");
+			if (warnBeforeStreamStart && isVisible()) {
+				auto button = QMessageBox::question(
+					this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
+					QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
+					QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+				if (button == QMessageBox::No) {
+					mainStreamButton->setChecked(false);
+				} else {
+					obs_frontend_streaming_start();
+				}
+			} else {
+				obs_frontend_streaming_start();
+			}
 			mainStreamButton->setChecked(true);
 		}
 		outputButtonStyle(mainStreamButton);
@@ -602,7 +616,18 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 			calldata_init(&cd);
 			calldata_set_string(&cd, "name", output_name.c_str());
 			if (streamButton->isChecked()) {
-				if (!proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd))
+				bool start = true;
+				bool warnBeforeStreamStart = config_get_bool(obs_frontend_get_global_config(), "BasicWindow",
+									     "WarnBeforeStartingStream");
+				if (warnBeforeStreamStart && isVisible()) {
+					auto button = QMessageBox::question(
+						this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
+						QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
+						QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+					if (button == QMessageBox::No)
+						start = false;
+				}
+				if (!start || !proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd))
 					streamButton->setChecked(false);
 			} else {
 				proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
@@ -720,6 +745,16 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 {
 	if (!settings)
 		return false;
+
+	bool warnBeforeStreamStart = config_get_bool(obs_frontend_get_global_config(), "BasicWindow", "WarnBeforeStartingStream");
+	if (warnBeforeStreamStart && isVisible()) {
+		auto button = QMessageBox::question(this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
+						    QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
+						    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+		if (button == QMessageBox::No)
+			return false;
+	}
+
 	const char *name = obs_data_get_string(settings, "name");
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		if (std::get<std::string>(*it) != name)

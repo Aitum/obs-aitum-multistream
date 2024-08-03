@@ -684,7 +684,6 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 						stop = false;
 				}
 				if (stop) {
-
 					const char *name2 = obs_data_get_string(output_data, "name");
 					for (auto it = outputs.begin(); it != outputs.end(); it++) {
 						if (std::get<std::string>(*it) != name2)

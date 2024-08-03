@@ -327,6 +327,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 			if (!vertical_outputs)
 				return;
 			auto s = obs_data_create();
+			obs_data_set_bool(s, "enabled", true);
 			obs_data_set_string(s, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(s, "stream_server", outputDialog->outputServer.toUtf8().constData());
 			obs_data_set_string(s, "stream_key", outputDialog->outputKey.toUtf8().constData());
@@ -942,6 +943,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			if (!settings)
 				return;
 
+			if (outputs == vertical_outputs)
+				obs_data_set_bool(settings, "enabled", true);
 			// Set the info from the output dialog
 			obs_data_set_string(settings, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(settings, "stream_server", outputDialog->outputServer.toUtf8().constData());

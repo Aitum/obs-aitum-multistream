@@ -824,14 +824,20 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		if (!venc_name || venc_name[0] == '\0') {
 			//use main encoder
 			auto main_output = obs_frontend_get_streaming_output();
-			venc = obs_output_get_video_encoder2(main_output, obs_data_get_int(settings, "video_encoder_index"));
-			if (!venc || !obs_output_active(main_output)) {
+			if (!obs_output_active(main_output)) {
 				obs_output_release(main_output);
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
+			auto vei = obs_data_get_int(settings, "video_encoder_index");
+			venc = obs_output_get_video_encoder2(main_output, vei);
 			obs_output_release(main_output);
+			if (!venc) {	
+				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
+						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				return false;
+			}
 		} else {
 			obs_data_t *s = nullptr;
 			auto ves = obs_data_get_obj(settings, "video_encoder_settings");
@@ -860,14 +866,20 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		if (!aenc_name || aenc_name[0] == '\0') {
 			//use main encoder
 			auto main_output = obs_frontend_get_streaming_output();
-			aenc = obs_output_get_audio_encoder(main_output, obs_data_get_int(settings, "audio_encoder_index"));
-			if (!aenc || !obs_output_active(main_output)) {
+			if (!obs_output_active(main_output)) {
 				obs_output_release(main_output);
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
+			auto aei = obs_data_get_int(settings, "audio_encoder_index");
+			aenc = obs_output_get_audio_encoder(main_output, aei);
 			obs_output_release(main_output);
+			if (!aenc) {
+				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
+						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				return false;
+			}
 		} else {
 			obs_data_t *s = nullptr;
 			auto aes = obs_data_get_obj(settings, "audio_encoder_settings");

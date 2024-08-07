@@ -836,7 +836,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
-			auto vei = obs_data_get_int(settings, "video_encoder_index");
+			auto vei = (int)obs_data_get_int(settings, "video_encoder_index");
 			venc = obs_output_get_video_encoder2(main_output, vei);
 			obs_output_release(main_output);
 			if (!venc) {
@@ -883,7 +883,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
-			auto aei = obs_data_get_int(settings, "audio_encoder_index");
+			auto aei = (int)obs_data_get_int(settings, "audio_encoder_index");
 			aenc = obs_output_get_audio_encoder(main_output, aei);
 			obs_output_release(main_output);
 			if (!aenc) {

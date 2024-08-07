@@ -669,6 +669,8 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 	} else {
 		connect(streamButton, &QPushButton::clicked, [this, streamButton, output_data] {
 			if (streamButton->isChecked()) {
+				blog(LOG_INFO, "[Aitum Multistream] start stream clicked '%s'",
+				     obs_data_get_string(output_data, "name"));
 				if (!StartOutput(output_data, streamButton))
 					streamButton->setChecked(false);
 			} else {
@@ -684,6 +686,8 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 						stop = false;
 				}
 				if (stop) {
+					blog(LOG_INFO, "[Aitum Multistream] stop stream clicked '%s'",
+					     obs_data_get_string(output_data, "name"));
 					const char *name2 = obs_data_get_string(output_data, "name");
 					for (auto it = outputs.begin(); it != outputs.end(); it++) {
 						if (std::get<std::string>(*it) != name2)
@@ -826,6 +830,8 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			auto main_output = obs_frontend_get_streaming_output();
 			if (!obs_output_active(main_output)) {
 				obs_output_release(main_output);
+				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
+				     obs_data_get_string(settings, "name"));
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
@@ -833,7 +839,10 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			auto vei = obs_data_get_int(settings, "video_encoder_index");
 			venc = obs_output_get_video_encoder2(main_output, vei);
 			obs_output_release(main_output);
-			if (!venc) {	
+			if (!venc) {
+				blog(LOG_WARNING,
+				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
+				     obs_data_get_string(settings, "name"), vei);
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
 						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
 				return false;
@@ -868,6 +877,8 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			auto main_output = obs_frontend_get_streaming_output();
 			if (!obs_output_active(main_output)) {
 				obs_output_release(main_output);
+				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
+				     obs_data_get_string(settings, "name"));
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
 						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
@@ -876,6 +887,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			aenc = obs_output_get_audio_encoder(main_output, aei);
 			obs_output_release(main_output);
 			if (!aenc) {
+				blog(LOG_WARNING,
+				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
+				     obs_data_get_string(settings, "name"), aei);
 				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
 						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
 				return false;
@@ -900,6 +914,8 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		venc = main_output ? obs_output_get_video_encoder(main_output) : nullptr;
 		if (!venc || !obs_output_active(main_output)) {
 			obs_output_release(main_output);
+			blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
+			     obs_data_get_string(settings, "name"));
 			QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
 					     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 			return false;

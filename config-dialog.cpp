@@ -753,7 +753,13 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				}
 				auto ves = encoder_changed ? nullptr : obs_data_get_obj(settings, "video_encoder_settings");
 				if (!ves) {
-					ves = obs_encoder_defaults(encoder);
+					auto defaults = obs_encoder_defaults(encoder);
+					if (defaults) {
+						ves = obs_data_get_defaults(defaults);
+						obs_data_release(defaults);
+					} else {
+						ves = obs_data_create();
+					}
 					obs_data_set_obj(settings, "video_encoder_settings", ves);
 				}
 				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
@@ -854,7 +860,13 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			}
 			auto aes = encoder_changed ? nullptr : obs_data_get_obj(settings, "audio_encoder_settings");
 			if (!aes) {
-				aes = obs_encoder_defaults(encoder);
+				auto defaults = obs_encoder_defaults(encoder);
+				if (defaults) {
+					aes = obs_data_get_defaults(defaults);
+					obs_data_release(defaults);
+				} else {
+					aes = obs_data_create();
+				}
 				obs_data_set_obj(settings, "audio_encoder_settings", aes);
 			}
 			auto stream_encoder_properties = obs_get_encoder_properties(encoder);

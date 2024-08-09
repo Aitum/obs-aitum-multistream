@@ -765,7 +765,6 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_property_next(&property);
 				}
 				obs_data_release(ves);
-				//obs_properties_destroy(stream_encoder_properties);
 			}
 		});
 
@@ -818,12 +817,30 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	audioEncoderGroup->setLayout(audioEncoderGroupLayout);
 	audioPageLayout->addRow(audioEncoderGroup);
 
+	int audio_encoder_index = 0;
+	current_type = obs_data_get_string(settings, "audio_encoder");
+	idx = 0;
+	while (obs_enum_encoder_types(idx++, &type)) {
+		if (obs_get_encoder_type(type) != OBS_ENCODER_AUDIO)
+			continue;
+		uint32_t caps = obs_get_encoder_caps(type);
+		if ((caps & (OBS_ENCODER_CAP_DEPRECATED | OBS_ENCODER_CAP_INTERNAL)) != 0)
+			continue;
+		const char *codec = obs_get_encoder_codec(type);
+		if (astrcmpi(codec, "aac") != 0 && astrcmpi(codec, "opus") != 0)
+			continue;
+		audioEncoder->addItem(QString::fromUtf8(obs_encoder_get_display_name(type)), QVariant(QString::fromUtf8(type)));
+		if (strcmp(type, current_type) == 0)
+			audio_encoder_index = audioEncoder->count() - 1;
+	}
+
 	connect(audioEncoder, &QComboBox::currentIndexChanged,
 		[this, serverGroup, advancedGroupLayout, audioPageLayout, audioEncoder, audioEncoderGroup, audioEncoderGroupLayout,
 		 audioTrack, settings, audioPage] {
 			auto encoder_string = audioEncoder->currentData().toString().toUtf8();
 			auto encoder = encoder_string.constData();
-			const bool encoder_changed = strcmp(obs_data_get_string(settings, "audio_encoder"), encoder) != 0;
+			const bool encoder_changed = !encoder_string.isEmpty() &&
+						     strcmp(obs_data_get_string(settings, "audio_encoder"), encoder) != 0;
 			if (encoder_changed)
 				obs_data_set_string(settings, "audio_encoder", encoder);
 
@@ -849,26 +866,11 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				obs_property_next(&property);
 			}
 			obs_data_release(aes);
-			//obs_properties_destroy(stream_encoder_properties);
 		});
 
-	current_type = obs_data_get_string(settings, "audio_encoder");
-	idx = 0;
-	while (obs_enum_encoder_types(idx++, &type)) {
-		if (obs_get_encoder_type(type) != OBS_ENCODER_AUDIO)
-			continue;
-		uint32_t caps = obs_get_encoder_caps(type);
-		if ((caps & (OBS_ENCODER_CAP_DEPRECATED | OBS_ENCODER_CAP_INTERNAL)) != 0)
-			continue;
-		const char *codec = obs_get_encoder_codec(type);
-		if (astrcmpi(codec, "aac") != 0 && astrcmpi(codec, "opus") != 0)
-			continue;
-		audioEncoder->addItem(QString::fromUtf8(obs_encoder_get_display_name(type)), QVariant(QString::fromUtf8(type)));
-		if (strcmp(type, current_type) == 0)
-			audioEncoder->setCurrentIndex(audioEncoder->count() - 1);
-	}
-	if (audioEncoder->currentIndex() < 0)
-		audioEncoder->setCurrentIndex(0);
+	if (audio_encoder_index == audioEncoder->currentIndex())
+		audioEncoder->setCurrentIndex(-1);
+	audioEncoder->setCurrentIndex(audio_encoder_index);
 
 	auto advancedButton = new QPushButton(QString::fromUtf8(obs_module_text("EditEncoderSettings")));
 	advancedButton->setProperty("themeID", "configIconSmall");

@@ -427,6 +427,11 @@ QIcon OBSBasicSettings::GetGeneralIcon() const
 	return listWidget->item(0)->icon();
 }
 
+QIcon OBSBasicSettings::GetAppearanceIcon() const
+{
+	return QIcon();
+}
+
 QIcon OBSBasicSettings::GetStreamIcon() const
 {
 	return listWidget->item(1)->icon();
@@ -465,6 +470,11 @@ QIcon OBSBasicSettings::GetAdvancedIcon() const
 void OBSBasicSettings::SetGeneralIcon(const QIcon &icon)
 {
 	listWidget->item(0)->setIcon(icon);
+}
+
+void OBSBasicSettings::SetAppearanceIcon(const QIcon &icon)
+{
+	UNUSED_PARAMETER(icon);
 }
 
 void OBSBasicSettings::SetStreamIcon(const QIcon &icon)

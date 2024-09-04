@@ -427,6 +427,11 @@ QIcon OBSBasicSettings::GetGeneralIcon() const
 	return listWidget->item(0)->icon();
 }
 
+QIcon OBSBasicSettings::GetAppearanceIcon() const
+{
+	return QIcon();
+}
+
 QIcon OBSBasicSettings::GetStreamIcon() const
 {
 	return listWidget->item(1)->icon();
@@ -465,6 +470,11 @@ QIcon OBSBasicSettings::GetAdvancedIcon() const
 void OBSBasicSettings::SetGeneralIcon(const QIcon &icon)
 {
 	listWidget->item(0)->setIcon(icon);
+}
+
+void OBSBasicSettings::SetAppearanceIcon(const QIcon &icon)
+{
+	UNUSED_PARAMETER(icon);
 }
 
 void OBSBasicSettings::SetStreamIcon(const QIcon &icon)
@@ -753,7 +763,13 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 				}
 				auto ves = encoder_changed ? nullptr : obs_data_get_obj(settings, "video_encoder_settings");
 				if (!ves) {
-					ves = obs_encoder_defaults(encoder);
+					auto defaults = obs_encoder_defaults(encoder);
+					if (defaults) {
+						ves = obs_data_get_defaults(defaults);
+						obs_data_release(defaults);
+					} else {
+						ves = obs_data_create();
+					}
 					obs_data_set_obj(settings, "video_encoder_settings", ves);
 				}
 				auto stream_encoder_properties = obs_get_encoder_properties(encoder);
@@ -854,7 +870,13 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			}
 			auto aes = encoder_changed ? nullptr : obs_data_get_obj(settings, "audio_encoder_settings");
 			if (!aes) {
-				aes = obs_encoder_defaults(encoder);
+				auto defaults = obs_encoder_defaults(encoder);
+				if (defaults) {
+					aes = obs_data_get_defaults(defaults);
+					obs_data_release(defaults);
+				} else {
+					aes = obs_data_create();
+				}
 				obs_data_set_obj(settings, "audio_encoder_settings", aes);
 			}
 			auto stream_encoder_properties = obs_get_encoder_properties(encoder);

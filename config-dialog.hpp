@@ -19,6 +19,7 @@
 class OBSBasicSettings : public QDialog {
 	Q_OBJECT
 	Q_PROPERTY(QIcon generalIcon READ GetGeneralIcon WRITE SetGeneralIcon DESIGNABLE true)
+	Q_PROPERTY(QIcon appearanceIcon READ GetAppearanceIcon WRITE SetAppearanceIcon DESIGNABLE true)
 	Q_PROPERTY(QIcon streamIcon READ GetStreamIcon WRITE SetStreamIcon DESIGNABLE true)
 	Q_PROPERTY(QIcon outputIcon READ GetOutputIcon WRITE SetOutputIcon DESIGNABLE true)
 	Q_PROPERTY(QIcon audioIcon READ GetAudioIcon WRITE SetAudioIcon DESIGNABLE true)
@@ -30,6 +31,7 @@ private:
 	QListWidget *listWidget;
 
 	QIcon GetGeneralIcon() const;
+	QIcon GetAppearanceIcon() const;
 	QIcon GetStreamIcon() const;
 	QIcon GetOutputIcon() const;
 	QIcon GetAudioIcon() const;
@@ -63,6 +65,7 @@ private:
 
 private slots:
 	void SetGeneralIcon(const QIcon &icon);
+	void SetAppearanceIcon(const QIcon &icon);
 	void SetStreamIcon(const QIcon &icon);
 	void SetOutputIcon(const QIcon &icon);
 	void SetAudioIcon(const QIcon &icon);

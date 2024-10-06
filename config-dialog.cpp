@@ -60,6 +60,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	QListWidgetItem *listwidgetitem = new QListWidgetItem(listWidget);
 	listwidgetitem->setIcon(QIcon(QString::fromUtf8(":/settings/images/settings/general.svg")));
 	//listwidgetitem->setProperty("themeID", QVariant(QString::fromUtf8("configIconSmall")));
+	//listwidgetitem->setProperty("class", "icon-gear");
 	//cogsIcon
 	listwidgetitem->setText(QString::fromUtf8(obs_module_text("General")));
 
@@ -211,6 +212,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	auto addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	addButton->setProperty("class", "icon-plus");
 
 	connect(addButton, &QPushButton::clicked, [this] {
 		QStringList otherNames;
@@ -295,6 +297,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	//guide_link->setOpenExternalLinks(true);
 	//	addButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	//	addButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	// 	addButton->setProperty("class", "icon-plus");
 	//	connect(addButton, &QPushButton::clicked, [this] {
 	//		if (!vertical_outputs)
 	//			return;
@@ -307,6 +310,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	verticalAddButton = new QPushButton(QIcon(":/res/images/plus.svg"), QString::fromUtf8(obs_module_text("AddOutput")));
 	verticalAddButton->setProperty("themeID", QVariant(QString::fromUtf8("addIconSmall")));
+	verticalAddButton->setProperty("class", "icon-plus");
 
 	connect(verticalAddButton, &QPushButton::clicked, [this] {
 		QStringList otherNames;
@@ -374,6 +378,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	newVersion = new QLabel;
 	newVersion->setProperty("themeID", "warning");
+	newVersion->setProperty("class", "text-warning"); 
 	newVersion->setVisible(false);
 	newVersion->setOpenExternalLinks(true);
 	newVersion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
@@ -896,6 +901,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	auto advancedButton = new QPushButton(QString::fromUtf8(obs_module_text("EditEncoderSettings")));
 	advancedButton->setProperty("themeID", "configIconSmall");
+	advancedButton->setProperty("class", "icon-gear");
 	advancedButton->setCheckable(true);
 	advancedButton->setChecked(advanced);
 	connect(advancedButton, &QPushButton::clicked, [advancedButton, advancedGroup, settings] {
@@ -913,6 +919,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto removeButton =
 		new QPushButton(QIcon(":/res/images/minus.svg"), QString::fromUtf8(obs_frontend_get_locale_string("Remove")));
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
+	removeButton->setProperty("class", "icon-minus");
 	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings, outputs] {
 		outputsLayout->removeWidget(serverGroup);
 		RemoveWidget(serverGroup);
@@ -931,6 +938,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	// Edit button
 	auto editButton = new QPushButton(QString::fromUtf8(obs_module_text("EditServerSettings")));
 	editButton->setProperty("themeID", "configIconSmall");
+	editButton->setProperty("class", "icon-gear");
 
 	connect(editButton, &QPushButton::clicked, [this, settings, outputs] {
 		QStringList otherNames;

@@ -331,6 +331,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	configButton = new QPushButton;
 	configButton->setMinimumHeight(30);
 	configButton->setProperty("themeID", "configIconSmall");
+	configButton->setProperty("class", "icon-gear");
 	configButton->setFlat(true);
 	configButton->setAutoDefault(false);
 	//configButton->setSizePolicy(sp2);

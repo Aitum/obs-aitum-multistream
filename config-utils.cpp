@@ -93,7 +93,8 @@ QIcon ConfigUtils::getPlatformIconFromEndpoint(QString endpoint)
 		return QIcon(":/aitum/media/twitter.png");
 	} else if (endpoint.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
 		return QIcon(":/aitum/media/trovo.png");
-	} else if (endpoint.contains(QString::fromUtf8(".facebook.com"))) { // facebook
+	} else if (endpoint.contains(QString::fromUtf8(".facebook.com")) ||
+		   endpoint.contains(QString::fromUtf8(".fbcdn.net"))) { // facebook
 		return QIcon(":/aitum/media/facebook.png");
 	} else { // unknown
 		return QIcon(":/aitum/media/unknown.png");

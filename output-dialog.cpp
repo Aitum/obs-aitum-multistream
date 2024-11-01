@@ -370,7 +370,8 @@ OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QStrin
 		layout->addWidget(WizardInfoTwitter(true));
 	} else if (outputServer.contains(QString::fromUtf8("livepush.trovo.live"))) { // trovo
 		layout->addWidget(WizardInfoTrovo(true));
-	} else if (outputServer.contains(QString::fromUtf8(".facebook.com"))) { // facebook
+	} else if (outputServer.contains(QString::fromUtf8(".fbcdn.net")) ||
+		   outputServer.contains(QString::fromUtf8(".facebook.com"))) { // facebook
 		layout->addWidget(WizardInfoFacebook(true));
 	} else { // unknown
 		layout->addWidget(WizardInfoUnknown(true));
@@ -1034,8 +1035,9 @@ QWidget *OutputDialog::WizardInfoFacebook(bool edit)
 	formLayout->addRow(generateFormLabel("OutputName"), outputNameField);
 
 	// Server field
-	auto serverSelection = generateOutputServerField(confirmButton, true, edit);
-	serverSelection->setText("rtmps://rtmp-api.facebook.com:443/rtmp/");
+	auto serverSelection = generateOutputServerField(confirmButton, false, edit);
+	if (!edit)
+		serverSelection->setText("rtmps://rtmp-api.facebook.com:443/rtmp/");
 
 	formLayout->addRow(generateFormLabel("FacebookServer"), serverSelection);
 

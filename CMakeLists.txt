@@ -1,10 +1,8 @@
 # --- Detect if the plugin is build out of tree or not ---
 if(CMAKE_PROJECT_NAME STREQUAL "obs-studio")
   set(BUILD_OUT_OF_TREE OFF)
-  set(OBS_FRONTEND_API_NAME "obs-frontend-api")
 else()
   set(BUILD_OUT_OF_TREE ON)
-  set(OBS_FRONTEND_API_NAME "frontend-api")
   cmake_minimum_required(VERSION 3.16...3.26)
 endif()
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)

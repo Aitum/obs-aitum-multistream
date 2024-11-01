@@ -378,7 +378,7 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 
 	newVersion = new QLabel;
 	newVersion->setProperty("themeID", "warning");
-	newVersion->setProperty("class", "text-warning"); 
+	newVersion->setProperty("class", "text-warning");
 	newVersion->setVisible(false);
 	newVersion->setOpenExternalLinks(true);
 	newVersion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);

@@ -400,7 +400,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		}
 
 		auto service = obs_frontend_get_streaming_service();
-		auto url = QString::fromUtf8(obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL));
+		auto url = QString::fromUtf8(service ? obs_service_get_connect_info(service, OBS_SERVICE_CONNECT_INFO_SERVER_URL)
+						     : "");
 		if (url != mainPlatformUrl) {
 			mainPlatformUrl = url;
 			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(30, 30));
@@ -701,7 +702,8 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 					streamButton->setChecked(false);
 			} else {
 				bool stop = true;
-				bool warnBeforeStreamStop = config_get_bool(get_user_config(), "BasicWindow", "WarnBeforeStoppingStream");
+				bool warnBeforeStreamStop =
+					config_get_bool(get_user_config(), "BasicWindow", "WarnBeforeStoppingStream");
 				if (warnBeforeStreamStop && isVisible()) {
 					auto button = QMessageBox::question(
 						this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStop.Title")),

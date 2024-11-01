@@ -54,16 +54,17 @@ QToolButton *ConfigUtils::generateMenuButton(QString title, QIcon icon)
 }
 
 // Generate QIcon from emoji
-QIcon ConfigUtils::generateEmojiQIcon(QString emoji) {
+QIcon ConfigUtils::generateEmojiQIcon(QString emoji)
+{
 	QPixmap pixmap(32, 32);
 	pixmap.fill(Qt::transparent);
-	
+
 	QPainter painter(&pixmap);
 	QFont font = painter.font();
 	font.setPixelSize(32);
 	painter.setFont(font);
 	painter.drawText(pixmap.rect(), Qt::AlignCenter, emoji);
-	
+
 	return QIcon(pixmap);
 }
 
@@ -78,7 +79,8 @@ void ConfigUtils::updateButtonStyles(QPushButton *defaultButton, QPushButton *cu
 QIcon ConfigUtils::getPlatformIconFromEndpoint(QString endpoint)
 {
 
-	if (endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
+	if (endpoint.contains(QString::fromUtf8("ingest.global-contribute.live-video.net")) ||
+	    endpoint.contains(QString::fromUtf8(".contribute.live-video.net")) ||
 	    endpoint.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
 		return QIcon(":/aitum/media/twitch.png");
 	} else if (endpoint.contains(QString::fromUtf8(".youtube.com"))) { // youtube

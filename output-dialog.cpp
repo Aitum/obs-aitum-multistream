@@ -114,6 +114,27 @@ QComboBox *OutputDialog::generateOutputServerCombo(std::string service, QPushBut
 	combo->setMinimumHeight(30);
 	combo->setStyleSheet("padding: 4px 8px;");
 
+	if (service == "Twitch") {
+		auto twitch_cache = obs_module_get_config_path(obs_get_module("rtmp-services"), "twitch_ingests.json");
+		if (twitch_cache) {
+			auto json = obs_data_create_from_json_file(twitch_cache);
+			bfree(twitch_cache);
+			combo->addItem(QString::fromUtf8("Default"), QString::fromUtf8("rtmp://live.twitch.tv/app"));
+			auto ingests = obs_data_get_array(json, "ingests");
+			obs_data_array_enum(
+				ingests,
+				[](obs_data_t *ingest_data, void *param) {
+					auto c = (QComboBox *)param;
+					auto url = QString::fromUtf8(obs_data_get_string(ingest_data, "url_template"));
+					url.replace(QString::fromUtf8("/{stream_key}"), QString::fromUtf8(""));
+					c->addItem(QString::fromUtf8(obs_data_get_string(ingest_data, "name")), url);
+				},
+				combo);
+			obs_data_array_release(ingests);
+			obs_data_release(json);
+		}
+	}
+
 	auto rawOptions = getService(service);
 
 	// turn raw options into actual selectable options
@@ -157,19 +178,15 @@ QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton, bool
 	if (edit) { // edit mode, set field value from output value
 		field->setText(outputKey);
 	}
-	
+
 	// Immediately hide
 	field->setEchoMode(StreamKeyInput::EchoMode::Password);
-	
+
 	// On focus, show field
-	connect(field, &StreamKeyInput::focusGained, [this, field] {
-		field->setEchoMode(StreamKeyInput::EchoMode::Normal);
-	});
-	
+	connect(field, &StreamKeyInput::focusGained, [this, field] { field->setEchoMode(StreamKeyInput::EchoMode::Normal); });
+
 	// On blur, hide field
-	connect(field, &StreamKeyInput::focusLost, [this, field] {
-		field->setEchoMode(StreamKeyInput::EchoMode::Password);
-	});
+	connect(field, &StreamKeyInput::focusLost, [this, field] { field->setEchoMode(StreamKeyInput::EchoMode::Password); });
 
 	connect(field, &QLineEdit::textEdited, [this, field, confirmButton] {
 		outputKey = field->text();
@@ -339,7 +356,8 @@ OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QStrin
 	auto layout = new QVBoxLayout();
 
 	// Add the appropriate page to the layout based upon the server url
-	if (outputServer.contains(QString::fromUtf8(".contribute.live-video.net")) ||
+	if (outputServer.contains(QString::fromUtf8("ingest.global-contribute.live-video.net")) ||
+	    outputServer.contains(QString::fromUtf8(".contribute.live-video.net")) ||
 	    outputServer.contains(QString::fromUtf8(".twitch.tv"))) { // twitch
 		layout->addWidget(WizardInfoTwitch(true));
 	} else if (outputServer.contains(QString::fromUtf8(".youtube.com"))) { // youtube

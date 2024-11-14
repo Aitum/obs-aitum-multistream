@@ -99,10 +99,12 @@ void RemoveWidget(QWidget *widget)
 	if (!widget)
 		return;
 	if (widget->layout()) {
-		while (QLayoutItem *item = widget->layout()->takeAt(0)) {
+		auto l = widget->layout();
+		QLayoutItem *item;
+		while (l->count() > 0 && (item = l->takeAt(0))) {
 			RemoveLayoutItem(item);
 		}
-		delete widget->layout();
+		delete l;
 	}
 	delete widget;
 }

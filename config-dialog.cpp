@@ -543,7 +543,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	auto platformIconLabel = new QLabel;
 	auto platformIcon =
 		ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(obs_data_get_string(settings, "stream_server")));
-	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	platformIconLabel->setPixmap(platformIcon.pixmap(36, 36));
 	server_title_layout->addWidget(platformIconLabel, 0);
 
 	auto streaming_title = new QLabel(QString::fromUtf8(obs_data_get_string(settings, "name")));

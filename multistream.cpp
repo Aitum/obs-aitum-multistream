@@ -126,6 +126,8 @@ auto outputTitleStyle = QString("QLabel{}");                                    
 auto outputGroupStyle = QString("background-color: %1; padding: 0px;")
 				.arg(QPalette().color(QPalette::ColorRole::Mid).name(QColor::HexRgb)); // wrapper around above
 
+auto outputPlatformIconSize = 36;
+
 // For showing warning for no vertical integration
 void showVerticalWarning(QVBoxLayout *verticalLayout)
 {
@@ -146,7 +148,7 @@ void showVerticalWarning(QVBoxLayout *verticalLayout)
 	verticalLayout->addWidget(verticalWarning);
 }
 
-static config_t *(*get_user_config_func)(void) = nullptr;
+//static config_t *(*get_user_config_func)(void) = nullptr;
 
 config_t *get_user_config(void)
 {
@@ -222,9 +224,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	// blank because we're pulling settings through from bis later
 	mainPlatformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(""));
-
-	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
-
+	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(outputPlatformIconSize, outputPlatformIconSize));
+	
 	l2->addWidget(mainPlatformIconLabel);
 	l2->addWidget(bisHeaderLabel, 1);
 
@@ -404,7 +405,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 						     : "");
 		if (url != mainPlatformUrl) {
 			mainPlatformUrl = url;
-			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(30, 30));
+			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(outputPlatformIconSize, outputPlatformIconSize));
 		}
 
 		int idx = 0;
@@ -638,7 +639,7 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 	auto platformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(endpoint);
 
-	platformIconLabel->setPixmap(platformIcon.pixmap(30, 30));
+	platformIconLabel->setPixmap(platformIcon.pixmap(outputPlatformIconSize, outputPlatformIconSize));
 
 	l2->addWidget(platformIconLabel);
 

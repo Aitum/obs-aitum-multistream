@@ -150,7 +150,9 @@ void showVerticalWarning(QVBoxLayout *verticalLayout)
 	verticalLayout->addWidget(verticalWarning);
 }
 
-//static config_t *(*get_user_config_func)(void) = nullptr;
+#if LIBOBS_API_VER < MAKE_SEMANTIC_VERSION(31, 0, 0)
+static config_t *(*get_user_config_func)(void) = nullptr;
+#endif
 
 config_t *get_user_config(void)
 {

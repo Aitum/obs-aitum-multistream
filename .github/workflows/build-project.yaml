@@ -128,8 +128,8 @@ jobs:
           certificatePassword: ${{ secrets.APPLE_CSC_MULTI_PASSWORD }}
           keychainPassword: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
           provisioningProfile: ${{ secrets.MACOS_SIGNING_PROVISIONING_PROFILE }}
-          notarizationUser: ${{ secrets.APPLE_EMAIL }}
-          notarizationPassword: ${{ secrets.APPLE_PASSWORD }}
+          notarizationUser: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
+          notarizationPassword: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
@@ -150,8 +150,8 @@ jobs:
           installerIdent: ${{ steps.codesign.outputs.installerIdent }}
           codesignTeam: ${{ steps.codesign.outputs.codesignTeam }}
           notarize: ${{ fromJSON(needs.check-event.outputs.notarize) && fromJSON(steps.codesign.outputs.haveNotarizationUser) }}
-          codesignUser: ${{ secrets.APPLE_EMAIL }}
-          codesignPass: ${{ secrets.APPLE_PASSWORD }}
+          codesignUser: ${{ secrets.MACOS_NOTARIZATION_USERNAME }}
+          codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Artifacts 📡
         uses: actions/upload-artifact@v4

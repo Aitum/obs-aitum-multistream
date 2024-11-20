@@ -44,6 +44,8 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
+        sudo apt update
+      
         : Install system dependencies 🛍️
         sudo apt install cmake ninja-build pkg-config clang clang-format build-essential curl ccache git zsh
         

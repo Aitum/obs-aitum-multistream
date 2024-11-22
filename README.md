@@ -14,3 +14,8 @@ Plugin for [OBS Studio](https://github.com/obsproject/obs-studio) to add [![Aitu
 
 # Translations
 Please read [Translations](TRANSLATIONS.md)
+
+
+# Upgrade Requests - Issues
+- The configuration should save between profiles.
+- Make other Stream outputs into "video encoder" stream possibilities so as to allow multiple streams for the one type of encoder rather than having to multiply the encoders out per stream.  This allows for only 2 encoders when there are 3 or more streams.  

@@ -644,96 +644,95 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	videoEncoderGroup->setLayout(videoEncoderGroupLayout);
 	videoPageLayout->addRow(videoEncoderGroup);
 
-	if (main) {
-		struct obs_video_info ovi;
-		obs_get_video_info(&ovi);
-		double fps = ovi.fps_den > 0 ? (double)ovi.fps_num / (double)ovi.fps_den : 0.0;
-		auto fpsDivisor = new QComboBox;
-		auto frd = obs_data_get_int(settings, "frame_rate_divisor");
-		for (int i = 1; i <= 10; i++) {
-			if (i == 1) {
-				fpsDivisor->addItem(
-					QString::number(fps, 'g', 3) + " " + QString::fromUtf8(obs_module_text("Original")), i);
-				fpsDivisor->setCurrentIndex(0);
-			} else {
-				fpsDivisor->addItem(QString::number(fps / i, 'g', 3), i);
-				if (frd == i) {
-					fpsDivisor->setCurrentIndex(fpsDivisor->count() - 1);
-				}
+	struct obs_video_info ovi;
+	obs_get_video_info(&ovi);
+	double fps = ovi.fps_den > 0 ? (double)ovi.fps_num / (double)ovi.fps_den : 0.0;
+	auto fpsDivisor = new QComboBox;
+	auto frd = obs_data_get_int(settings, "frame_rate_divisor");
+	for (int i = 1; i <= 10; i++) {
+		if (i == 1) {
+			fpsDivisor->addItem(QString::number(fps, 'g', 3) + " " + QString::fromUtf8(obs_module_text("Original")), i);
+			fpsDivisor->setCurrentIndex(0);
+		} else {
+			fpsDivisor->addItem(QString::number(fps / i, 'g', 3), i);
+			if (frd == i) {
+				fpsDivisor->setCurrentIndex(fpsDivisor->count() - 1);
 			}
 		}
+	}
+	connect(fpsDivisor, &QComboBox::currentIndexChanged, [fpsDivisor, settings] {
+		obs_data_set_int(settings, "frame_rate_divisor", fpsDivisor->currentData().toInt());
+	});
 
-		videoEncoderGroupLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.FPS")),
-						fpsDivisor);
-		//obs_encoder_get_frame_rate_divisor
+	videoEncoderGroupLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.FPS")), fpsDivisor);
+	//obs_encoder_get_frame_rate_divisor
 
-		auto scale = new QGroupBox(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Output.Adv.Rescale")));
-		scale->setCheckable(true);
-		scale->setChecked(obs_data_get_bool(settings, "scale"));
+	auto scale = new QGroupBox(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Output.Adv.Rescale")));
+	scale->setCheckable(true);
+	scale->setChecked(obs_data_get_bool(settings, "scale"));
 
-		connect(scale, &QGroupBox::toggled,
-			[scale, settings] { obs_data_set_bool(settings, "scale", scale->isChecked()); });
+	connect(scale, &QGroupBox::toggled, [scale, settings] { obs_data_set_bool(settings, "scale", scale->isChecked()); });
 
-		auto scaleLayout = new QFormLayout();
-		scale->setLayout(scaleLayout);
+	auto scaleLayout = new QFormLayout();
+	scale->setLayout(scaleLayout);
 
-		auto downscale = new QComboBox;
+	auto downscale = new QComboBox;
 
-		auto downscale_type = obs_data_get_int(settings, "scale_type");
-		if (downscale_type == OBS_SCALE_DISABLE) {
-			downscale_type = OBS_SCALE_BILINEAR;
-			obs_data_set_int(settings, "scale_type", downscale_type);
-		}
-		downscale->addItem(
-			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bilinear")),
-			OBS_SCALE_BILINEAR);
-		if (downscale_type == OBS_SCALE_BILINEAR)
-			downscale->setCurrentIndex(0);
-		downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Area")),
-				   OBS_SCALE_AREA);
-		if (downscale_type == OBS_SCALE_AREA)
-			downscale->setCurrentIndex(1);
-		downscale->addItem(
-			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bicubic")),
-			OBS_SCALE_BICUBIC);
-		if (downscale_type == OBS_SCALE_BICUBIC)
-			downscale->setCurrentIndex(2);
-		downscale->addItem(
-			QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Lanczos")),
-			OBS_SCALE_LANCZOS);
-		if (downscale_type == OBS_SCALE_LANCZOS)
-			downscale->setCurrentIndex(3);
+	auto downscale_type = obs_data_get_int(settings, "scale_type");
+	if (downscale_type == OBS_SCALE_DISABLE) {
+		downscale_type = OBS_SCALE_BILINEAR;
+		obs_data_set_int(settings, "scale_type", downscale_type);
+	}
+	downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bilinear")),
+			   OBS_SCALE_BILINEAR);
+	if (downscale_type == OBS_SCALE_BILINEAR)
+		downscale->setCurrentIndex(0);
+	downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Area")),
+			   OBS_SCALE_AREA);
+	if (downscale_type == OBS_SCALE_AREA)
+		downscale->setCurrentIndex(1);
+	downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Bicubic")),
+			   OBS_SCALE_BICUBIC);
+	if (downscale_type == OBS_SCALE_BICUBIC)
+		downscale->setCurrentIndex(2);
+	downscale->addItem(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter.Lanczos")),
+			   OBS_SCALE_LANCZOS);
+	if (downscale_type == OBS_SCALE_LANCZOS)
+		downscale->setCurrentIndex(3);
 
-		connect(downscale, &QComboBox::currentIndexChanged,
-			[downscale, settings] { obs_data_set_int(settings, "scale_type", downscale->currentData().toInt()); });
+	connect(downscale, &QComboBox::currentIndexChanged,
+		[downscale, settings] { obs_data_set_int(settings, "scale_type", downscale->currentData().toInt()); });
 
-		scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter")),
-				    downscale);
+	scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.DownscaleFilter")), downscale);
 
-		auto resolution = new QComboBox;
-		resolution->setEditable(true);
+	auto resolution = new QComboBox;
+	resolution->setEditable(true);
+	if (main) {
 		resolution->addItem("1280x720");
 		resolution->addItem("1920x1080");
 		resolution->addItem("2560x1440");
-		resolution->setCurrentText(QString::number(obs_data_get_int(settings, "width")) + "x" +
-					   QString::number(obs_data_get_int(settings, "height")));
-		if (resolution->currentText() == "0x0")
-			resolution->setCurrentText(QString::number(ovi.output_width) + "x" + QString::number(ovi.output_height));
-
-		connect(resolution, &QComboBox::currentTextChanged, [settings, resolution] {
-			const auto res = resolution->currentText();
-			uint32_t width, height;
-			if (sscanf(res.toUtf8().constData(), "%dx%d", &width, &height) == 2 && width > 0 && height > 0) {
-				obs_data_set_int(settings, "width", width);
-				obs_data_set_int(settings, "height", height);
-			}
-		});
-
-		scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.ScaledResolution")),
-				    resolution);
-
-		videoEncoderGroupLayout->addRow(scale);
+	} else {
+		resolution->addItem("720x1280");
+		resolution->addItem("1080x1920");
+		resolution->addItem("1440x2560");
 	}
+	resolution->setCurrentText(QString::number(obs_data_get_int(settings, "width")) + "x" +
+				   QString::number(obs_data_get_int(settings, "height")));
+	if (resolution->currentText() == "0x0")
+		resolution->setCurrentText(QString::number(ovi.output_width) + "x" + QString::number(ovi.output_height));
+
+	connect(resolution, &QComboBox::currentTextChanged, [settings, resolution] {
+		const auto res = resolution->currentText();
+		uint32_t width, height;
+		if (sscanf(res.toUtf8().constData(), "%dx%d", &width, &height) == 2 && width > 0 && height > 0) {
+			obs_data_set_int(settings, "width", width);
+			obs_data_set_int(settings, "height", height);
+		}
+	});
+
+	scaleLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.ScaledResolution")), resolution);
+
+	videoEncoderGroupLayout->addRow(scale);
 
 	connect(videoEncoder, &QComboBox::currentIndexChanged,
 		[this, serverGroup, advancedGroupLayout, videoPageLayout, videoEncoder, videoEncoderIndex, videoEncoderGroup,
@@ -763,7 +762,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 					obs_properties_destroy(t->second);
 					video_encoder_properties.erase(t);
 				}
-				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= (main ? 2 : 0); i--) {
+				for (int i = videoEncoderGroupLayout->rowCount() - 1; i >= 2; i--) {
 					videoEncoderGroupLayout->removeRow(i);
 				}
 				auto ves = encoder_changed ? nullptr : obs_data_get_obj(settings, "video_encoder_settings");

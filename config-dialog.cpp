@@ -33,6 +33,10 @@
 #include "output-dialog.hpp"
 #include "config-utils.hpp"
 
+#ifndef _WIN32
+#include <dlfcn.h>
+#endif
+
 template<typename T> std::string to_string_with_precision(const T a_value, const int n = 6)
 {
 	std::ostringstream out;
@@ -660,9 +664,8 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			}
 		}
 	}
-	connect(fpsDivisor, &QComboBox::currentIndexChanged, [fpsDivisor, settings] {
-		obs_data_set_int(settings, "frame_rate_divisor", fpsDivisor->currentData().toInt());
-	});
+	connect(fpsDivisor, &QComboBox::currentIndexChanged,
+		[fpsDivisor, settings] { obs_data_set_int(settings, "frame_rate_divisor", fpsDivisor->currentData().toInt()); });
 
 	videoEncoderGroupLayout->addRow(QString::fromUtf8(obs_frontend_get_locale_string("Basic.Settings.Video.FPS")), fpsDivisor);
 	//obs_encoder_get_frame_rate_divisor
@@ -1073,7 +1076,11 @@ void OBSBasicSettings::AddProperty(obs_properties_t *properties, obs_property_t 
 			}
 		}
 		encoder_property_widgets.emplace(property, widget);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+		connect(widget, &QCheckBox::checkStateChanged, [this, properties, property, settings, widget, layout] {
+#else
 		connect(widget, &QCheckBox::stateChanged, [this, properties, property, settings, widget, layout] {
+#endif
 			obs_data_set_bool(settings, obs_property_name(property), widget->isChecked());
 			if (obs_property_modified(property, settings)) {
 				RefreshProperties(properties, layout);
@@ -1325,7 +1332,11 @@ static video_t *(*obs_encoder_parent_video_wrapper)(const obs_encoder_t *encoder
 void OBSBasicSettings::LoadOutputStats(std::vector<video_t *> *oldVideos)
 {
 	if (!obs_encoder_parent_video_loaded) {
+#ifdef _WIN32
 		void *dl = os_dlopen("obs");
+#else
+		void *dl = dlopen(nullptr, RTLD_LAZY);
+#endif
 		if (dl) {
 			auto sym = os_dlsym(dl, "obs_encoder_parent_video");
 			if (sym)

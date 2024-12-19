@@ -5,9 +5,9 @@
 #include <obs-frontend-api.h>
 #include <QFrame>
 #include <QPushButton>
-#include <QVBoxLayout>
-#include <QTimer>
 #include <QString>
+#include <QTimer>
+#include <QVBoxLayout>
 
 class OBSBasicSettings;
 
@@ -19,6 +19,7 @@ private:
 
 	obs_data_t *current_config = nullptr;
 
+	QVBoxLayout *mainLayout = nullptr;
 	QVBoxLayout *mainCanvasLayout = nullptr;
 	QVBoxLayout *mainCanvasOutputLayout = nullptr;
 	QVBoxLayout *verticalCanvasLayout = nullptr;
@@ -58,10 +59,25 @@ private:
 	static void stream_output_start(void *data, calldata_t *calldata);
 
 private slots:
-	void NewerVersionAvailable(QString version);
+	void ApiInfo(QString info);
 
 public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
+};
+
+class AspectRatioPixmapLabel : public QLabel {
+	Q_OBJECT
+public:
+	explicit AspectRatioPixmapLabel(QWidget *parent = 0);
+	virtual int heightForWidth(int width) const;
+	virtual QSize sizeHint() const;
+	QPixmap scaledPixmap() const;
+public slots:
+	void setPixmap(const QPixmap &);
+	void resizeEvent(QResizeEvent *);
+
+private:
+	QPixmap pix;
 };

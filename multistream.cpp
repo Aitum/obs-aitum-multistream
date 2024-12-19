@@ -1,3 +1,4 @@
+#include "config-utils.hpp"
 #include "multistream.hpp"
 #include "obs-module.h"
 #include "version.h"
@@ -12,7 +13,6 @@
 #include <QVBoxLayout>
 #include <util/config-file.h>
 #include <util/platform.h>
-#include "config-utils.hpp"
 
 extern "C" {
 #include "file-updater.h"
@@ -31,24 +31,9 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 	UNUSED_PARAMETER(param);
 	if (!file || !file->buffer.num)
 		return true;
-	auto d = obs_data_create_from_json((const char *)file->buffer.array);
-	if (!d)
-		return true;
-	auto data = obs_data_get_obj(d, "data");
-	obs_data_release(d);
-	if (!data)
-		return true;
-	auto version = obs_data_get_string(data, "version");
-	int major;
-	int minor;
-	int patch;
-	if (sscanf(version, "%d.%d.%d", &major, &minor, &patch) == 3) {
-		auto sv = MAKE_SEMANTIC_VERSION(major, minor, patch);
-		if (sv > MAKE_SEMANTIC_VERSION(PROJECT_VERSION_MAJOR, PROJECT_VERSION_MINOR, PROJECT_VERSION_PATCH)) {
-			QMetaObject::invokeMethod(multistream_dock, "NewerVersionAvailable", Q_ARG(QString, QString::fromUtf8(version)));
-		}
-	}
-	obs_data_release(data);
+
+	QMetaObject::invokeMethod(multistream_dock, "ApiInfo", Q_ARG(QString, QString::fromUtf8((const char *)file->buffer.array)));
+
 	return true;
 }
 
@@ -60,7 +45,7 @@ bool obs_module_load(void)
 	multistream_dock = new MultistreamDock(main_window);
 	obs_frontend_add_dock_by_id("AitumMultistreamDock", obs_module_text("AitumMultistream"), multistream_dock);
 
-	version_update_info = update_info_create_single("[Aitum Multistream]", "OBS", "https://api.aitum.tv/multi",
+	version_update_info = update_info_create_single("[Aitum Multistream]", "OBS", "https://api.aitum.tv/plugin/multi",
 							version_info_downloaded, nullptr);
 	return true;
 }
@@ -189,9 +174,8 @@ config_t *get_user_config(void)
 MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 {
 	// Main layout
-	auto mainLayout = new QVBoxLayout;
+	mainLayout = new QVBoxLayout;
 	mainLayout->setContentsMargins(0, 0, 0, 0);
-	mainLayout->setSpacing(0);
 	setLayout(mainLayout);
 
 	auto t = new QWidget;
@@ -236,7 +220,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 	mainPlatformIconLabel = new QLabel;
 	auto platformIcon = ConfigUtils::getPlatformIconFromEndpoint(QString::fromUtf8(""));
 	mainPlatformIconLabel->setPixmap(platformIcon.pixmap(outputPlatformIconSize, outputPlatformIconSize));
-	
+
 	l2->addWidget(mainPlatformIconLabel);
 	l2->addWidget(bisHeaderLabel, 1);
 
@@ -416,7 +400,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 						     : "");
 		if (url != mainPlatformUrl) {
 			mainPlatformUrl = url;
-			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(outputPlatformIconSize, outputPlatformIconSize));
+			mainPlatformIconLabel->setPixmap(ConfigUtils::getPlatformIconFromEndpoint(url).pixmap(
+				outputPlatformIconSize, outputPlatformIconSize));
 		}
 
 		int idx = 0;
@@ -1081,18 +1066,70 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 				Qt::QueuedConnection);
 		}
 		if (!md->exiting)
-			QMetaObject::invokeMethod(
-				button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
+			QMetaObject::invokeMethod(button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
 		md->outputs.erase(it);
 		break;
 	}
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
 }
 
-void MultistreamDock::NewerVersionAvailable(QString version)
+void MultistreamDock::ApiInfo(QString info)
 {
-	newer_version_available = version;
-	configButton->setStyleSheet(QString::fromUtf8("background: rgb(192,128,0);"));
+	auto d = obs_data_create_from_json(info.toUtf8().constData());
+	if (!d)
+		return;
+	auto data_obj = obs_data_get_obj(d, "data");
+	obs_data_release(d);
+	if (!data_obj)
+		return;
+	auto version = obs_data_get_string(data_obj, "version");
+	int major;
+	int minor;
+	int patch;
+	if (sscanf(version, "%d.%d.%d", &major, &minor, &patch) == 3) {
+		auto sv = MAKE_SEMANTIC_VERSION(major, minor, patch);
+		if (sv > MAKE_SEMANTIC_VERSION(PROJECT_VERSION_MAJOR, PROJECT_VERSION_MINOR, PROJECT_VERSION_PATCH)) {
+			newer_version_available = QString::fromUtf8(version);
+			configButton->setStyleSheet(QString::fromUtf8("background: rgb(192,128,0);"));
+		}
+	}
+	obs_data_array_t *blocks = obs_data_get_array(data_obj, "partnerBlocks");
+	size_t count = obs_data_array_count(blocks);
+	for (size_t i = count; i > 0; i--) {
+		obs_data_t *block = obs_data_array_item(blocks, i - 1);
+		auto block_type = obs_data_get_string(block, "type");
+		if (strcmp(block_type, "LINK") == 0) {
+			auto button = new QPushButton(QString::fromUtf8(obs_data_get_string(block, "label")));
+			button->setStyleSheet(QString::fromUtf8(obs_data_get_string(block, "qss")));
+			auto url = QString::fromUtf8(obs_data_get_string(block, "data"));
+			connect(button, &QPushButton::clicked, [url] { QDesktopServices::openUrl(QUrl(url)); });
+			auto buttonRow = new QHBoxLayout;
+			buttonRow->setContentsMargins(8, 0, 8, 0);
+			buttonRow->setSpacing(8);
+			buttonRow->addWidget(button);
+			mainLayout->insertLayout(1, buttonRow, 0);
+		} else if (strcmp(block_type, "IMAGE") == 0) {
+			auto image_data = QString::fromUtf8(obs_data_get_string(block, "data"));
+			if (image_data.startsWith("data:image/")) {
+				auto pos = image_data.indexOf(";");
+				auto format = image_data.mid(11, pos - 11);
+				QImage image;
+				if (image.loadFromData(QByteArray::fromBase64(image_data.mid(pos + 7).toUtf8().constData()),
+						       format.toUtf8().constData())) {
+					auto label = new AspectRatioPixmapLabel;
+					label->setPixmap(QPixmap::fromImage(image));
+					label->setAlignment(Qt::AlignCenter);
+					label->setStyleSheet(QString::fromUtf8(obs_data_get_string(block, "qss")));
+					auto labelRow = new QHBoxLayout;
+					labelRow->addWidget(label, 1, Qt::AlignCenter);
+					mainLayout->insertLayout(1, labelRow, 0);
+				}
+			}
+		}
+		obs_data_release(block);
+	}
+	obs_data_array_release(blocks);
+	obs_data_release(data_obj);
 }
 
 void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
@@ -1165,4 +1202,39 @@ void MultistreamDock::storeMainStreamEncoders()
 		}
 	}
 	obs_output_release(output);
+}
+
+AspectRatioPixmapLabel::AspectRatioPixmapLabel(QWidget *parent) : QLabel(parent)
+{
+	setMinimumSize(1, 1);
+	setScaledContents(false);
+}
+
+void AspectRatioPixmapLabel::setPixmap(const QPixmap &p)
+{
+	pix = p;
+	QLabel::setPixmap(scaledPixmap());
+}
+
+int AspectRatioPixmapLabel::heightForWidth(int width) const
+{
+	return pix.isNull() ? height() : (pix.height() * width) / pix.width();
+}
+
+QSize AspectRatioPixmapLabel::sizeHint() const
+{
+	int w = width();
+	return QSize(w, heightForWidth(w));
+}
+
+QPixmap AspectRatioPixmapLabel::scaledPixmap() const
+{
+	return pix.scaled(size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+void AspectRatioPixmapLabel::resizeEvent(QResizeEvent *e)
+{
+	UNUSED_PARAMETER(e);
+	if (!pix.isNull())
+		QLabel::setPixmap(scaledPixmap());
 }

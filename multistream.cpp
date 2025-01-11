@@ -34,6 +34,10 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 
 	QMetaObject::invokeMethod(multistream_dock, "ApiInfo", Q_ARG(QString, QString::fromUtf8((const char *)file->buffer.array)));
 
+	if (version_update_info) {
+		update_info_destroy(version_update_info);
+		version_update_info = nullptr;
+	}
 	return true;
 }
 
@@ -58,7 +62,10 @@ void obs_module_post_load()
 
 void obs_module_unload()
 {
-	update_info_destroy(version_update_info);
+	if (version_update_info) {
+		update_info_destroy(version_update_info);
+		version_update_info = nullptr;
+	}
 	if (multistream_dock) {
 		delete multistream_dock;
 	}

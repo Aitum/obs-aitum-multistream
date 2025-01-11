@@ -392,6 +392,8 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 	mainVideo = obs_get_video();
 	connect(&videoCheckTimer, &QTimer::timeout, [this] {
+		if (exiting)
+			return;
 		if (obs_get_video() != mainVideo) {
 			oldVideo.push_back(mainVideo);
 			mainVideo = obs_get_video();
@@ -485,6 +487,7 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 MultistreamDock::~MultistreamDock()
 {
+	videoCheckTimer.stop();
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		auto old = std::get<obs_output_t *>(*it);
 		signal_handler_t *signal = obs_output_get_signal_handler(old);

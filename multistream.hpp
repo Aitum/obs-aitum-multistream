@@ -30,6 +30,7 @@ private:
 	QString mainPlatformUrl;
 
 	QString newer_version_available;
+	time_t partnerBlockTime = 0;
 
 	QTimer videoCheckTimer;
 	video_t *mainVideo = nullptr;

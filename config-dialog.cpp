@@ -637,7 +637,7 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		});
 		videoPageLayout->addRow(QString::fromUtf8(obs_module_text("VideoEncoderIndex")), videoEncoderIndex);
 
-		if (videoEncoderIndex->currentIndex() != 0 ||
+		if (videoEncoderIndex->currentIndex() <= 0 &&
 		    !config_get_bool(obs_frontend_get_profile_config(), "Stream1", "EnableMultitrackVideo"))
 			videoPageLayout->setRowVisible(videoEncoderIndex, false);
 	}

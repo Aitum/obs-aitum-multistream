@@ -1,33 +1,33 @@
 {
     "dependencies": {
         "obs-studio": {
-            "version": "30.0.2",
-            "baseUrl": "https://github.com/obsproject/obs-studio/archive/refs/tags",
+            "version": "31.0.0-fix1",
+            "baseUrl": "https://github.com/exeldro/obs-studio/archive/refs/tags",
             "label": "OBS sources",
             "hashes": {
-                "macos": "be12c3ad0a85713750d8325e4b1db75086223402d7080d0e3c2833d7c5e83c27",
-                "windows-x64": "970058c49322cfa9cd6d620abb393fed89743ba7e74bd9dbb6ebe0ea8141d9c7"
+                "macos": "cd1eb62a9f9583fb028d3fb71523fc235b5f7c334793dc3f85baae10147e2c30",
+                "windows-x64": "1cc1cd66a10a7c2e8963c17fc8de4d706daa77f1013c2ed532b117fc689f8e01"
             }
         },
         "prebuilt": {
-            "version": "2023-11-03",
+            "version": "2024-09-12",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-Built obs-deps",
             "hashes": {
-                "macos": "90c2fc069847ec2768dcc867c1c63b112c615ed845a907dc44acab7a97181974",
-                "windows-x64": "d0825a6fb65822c993a3059edfba70d72d2e632ef74893588cf12b1f0d329ce6"
+                "macos": "c857b211ee378772994b632036e1e5befe66b37e85286cb8e3cefc1435d5220a",
+                "windows-x64": "d4a4f194591766891ad3c0b267deec3c4b85239c8fe557273559927456aeedbb"
             }
         },
         "qt6": {
-            "version": "2023-11-03",
+            "version": "2024-09-12",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-Built Qt6",
             "hashes": {
-                "macos": "ba4a7152848da0053f63427a2a2cb0a199af3992997c0db08564df6f48c9db98",
-                "windows-x64": "bc57dedf76b47119a6dce0435a2f21b35b08c8f2948b1cb34a157320f77732d1"
+                "macos": "34a2de6b7f4d4d58fc5a15a4dba49a61d81a4045d0cedfc1a1f08c0dfb8047cf",
+                "windows-x64": "4d15ce13dbb0a8a2cabcce5ae0da5e80ee589b482a61b2025378465c1da32c4f"
             },
             "debugSymbols": {
-                "windows-x64": "fd8ecd1d8cd2ef049d9f4d7fb5c134f784836d6020758094855dfa98bd025036"
+                "windows-x64": "dad2351a5c9cd438168e1ed8fb453a2534532252edb555f1001a5e8eb3f1bbd4"
             }
         }
     },

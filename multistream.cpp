@@ -524,9 +524,14 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 		md->outputButtonStyle(md->mainStreamButton);
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
 		md->storeMainStreamEncoders();
+
+		emit md->requestingStart(event == OBS_FRONTEND_EVENT_STREAMING_STARTING);
+
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
 		md->outputButtonStyle(md->mainStreamButton);
+
+		emit md->requestingStop(event == OBS_FRONTEND_EVENT_STREAMING_STOPPING);
 	}
 }
 
@@ -594,6 +599,9 @@ void MultistreamDock::LoadSettings()
 		mainCanvasOutputLayout->removeWidget(streamGroup);
 		RemoveWidget(streamGroup);
 	}
+
+	std::for_each(ss_connections.begin(), ss_connections.end(), [](QMetaObject::Connection &conn) { disconnect(conn); });
+	ss_connections.clear();
 
 	obs_data_array_enum(
 		outputs2,
@@ -746,6 +754,34 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 			}
 			outputButtonStyle(streamButton);
 		});
+		bool startWithMain = obs_data_get_bool(output_data, "start_w_main");
+		bool stopWithMain = obs_data_get_bool(output_data, "stop_w_main");
+		if (startWithMain)
+			ss_connections.push_back(connect(this, &MultistreamDock::requestingStart, [this, output_data, streamButton](bool pend) {
+				if (!pend) {
+					blog(LOG_INFO, "[Aitum Multistream] automatically starting stream '%s'",
+					     obs_data_get_string(output_data, "name"));
+					if (!StartOutput(output_data, streamButton))
+						streamButton->setChecked(false);
+				}
+			}));
+		if (stopWithMain)
+			ss_connections.push_back(connect(this, &MultistreamDock::requestingStop, [this, output_data, streamButton](bool pend) {
+				if (pend) {
+					blog(LOG_INFO, "[Aitum Multistream] automatically stopping stream '%s'", // if the corresponding output still exists
+					     obs_data_get_string(output_data, "name"));
+					const char *name2 = obs_data_get_string(output_data, "name");
+					for (auto it = outputs.begin(); it != outputs.end(); it++) {
+						if (std::get<std::string>(*it) != name2)
+							continue;
+
+						obs_queue_task(
+							OBS_TASK_GRAPHICS,
+							[](void *param) { obs_output_stop((obs_output_t *)param); },
+							std::get<obs_output *>(*it), false);
+					}
+				}
+			}));
 	}
 	//streamButton->setSizePolicy(sp2);
 	streamButton->setToolTip(QString::fromUtf8(obs_module_text("Stream")));

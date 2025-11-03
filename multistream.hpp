@@ -59,6 +59,8 @@ private:
 	static void stream_output_stop(void *data, calldata_t *calldata);
 	static void stream_output_start(void *data, calldata_t *calldata);
 
+	std::vector<QMetaObject::Connection> ss_connections;
+
 private slots:
 	void ApiInfo(QString info);
 
@@ -66,6 +68,10 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
+
+signals:
+	void requestingStart(bool pending);
+	void requestingStop(bool pending);
 };
 
 class AspectRatioPixmapLabel : public QLabel {

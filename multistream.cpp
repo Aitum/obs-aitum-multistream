@@ -761,8 +761,7 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 				if (!pend) {
 					blog(LOG_INFO, "[Aitum Multistream] automatically starting stream '%s'",
 					     obs_data_get_string(output_data, "name"));
-					if (!StartOutput(output_data, streamButton))
-						streamButton->setChecked(false);
+					StartOutput(output_data, streamButton, true);
 				}
 			}));
 		if (stopWithMain)
@@ -871,13 +870,13 @@ void MultistreamDock::SaveSettings()
 	bfree(path);
 }
 
-bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton)
+bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton, bool automatically)
 {
 	if (!settings)
 		return false;
 
 	bool warnBeforeStreamStart = config_get_bool(get_user_config(), "BasicWindow", "WarnBeforeStartingStream");
-	if (warnBeforeStreamStart && isVisible()) {
+	if (warnBeforeStreamStart && isVisible() && !automatically) {
 		auto button = QMessageBox::question(this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
 						    QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
 						    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);

@@ -45,7 +45,7 @@ private:
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
-	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
+	bool StartOutput(obs_data_t *settings, QPushButton *streamButton, bool automatically = false);
 
 	void outputButtonStyle(QPushButton *button);
 

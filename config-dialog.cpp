@@ -912,9 +912,35 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 		obs_data_set_bool(settings, "advanced", is_advanced);
 	});
 
+	// Automation settings
+	auto automationPage = new QWidget;
+	automationPage->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+	auto automationPageLayout = new QFormLayout;
+	automationPage->setLayout(automationPageLayout);
+
+	auto startEndDescription = new QLabel(QString::fromUtf8(obs_module_text("StartStopWithMainInfo")));
+	automationPageLayout->addRow(startEndDescription);
+
+	auto startWithMain = new QCheckBox(QString::fromUtf8(obs_module_text("StartWithMain")));
+	startWithMain->setChecked(obs_data_get_bool(settings, "start_w_main"));
+	connect(startWithMain, &QCheckBox::stateChanged, [settings, startWithMain] {
+		obs_data_set_bool(settings, "start_w_main", startWithMain->isChecked());
+	});
+
+	auto stopWithMain = new QCheckBox(QString::fromUtf8(obs_module_text("StopWithMain")));
+	stopWithMain->setChecked(obs_data_get_bool(settings, "stop_w_main"));
+	connect(stopWithMain, &QCheckBox::stateChanged, [settings, stopWithMain] {
+		obs_data_set_bool(settings, "stop_w_main", stopWithMain->isChecked());
+	});
+
+	automationPageLayout->addRow(startWithMain);
+	automationPageLayout->addRow(stopWithMain);
+
 	// Hook up
 	advancedTabWidget->addTab(videoPage, QString::fromUtf8(obs_module_text("VideoEncoderSettings")));
 	advancedTabWidget->addTab(audioPage, QString::fromUtf8(obs_module_text("AudioEncoderSettings")));
+	advancedTabWidget->addTab(automationPage, QString::fromUtf8(obs_module_text("AutomationSettings")));
 	advancedGroupLayout->addWidget(advancedTabWidget, 1);
 
 	// Remove button

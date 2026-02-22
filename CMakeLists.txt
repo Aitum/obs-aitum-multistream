@@ -65,7 +65,16 @@ target_sources(${PROJECT_NAME} PRIVATE
 	output-dialog.hpp
 	stream-key-input.hpp
     multistream.hpp
-	file-updater.h)
+	file-updater.h
+	keychain-helper.hpp)
+
+# macOS Keychain support for secure stream key storage
+if(APPLE)
+  target_sources(${PROJECT_NAME} PRIVATE keychain-helper.mm)
+  target_link_libraries(${PROJECT_NAME} PRIVATE "-framework Security" "-framework CoreFoundation")
+else()
+  target_sources(${PROJECT_NAME} PRIVATE keychain-helper-stub.cpp)
+endif()
 
 if(BUILD_OUT_OF_TREE)
 	set_target_properties_plugin(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

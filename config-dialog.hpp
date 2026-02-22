@@ -63,6 +63,8 @@ private:
 	QToolButton *generalHelpButton;
 	QToolButton *generalSupportAitumButton;
 
+	QCheckBox *keychainCheckbox = nullptr;
+
 private slots:
 	void SetGeneralIcon(const QIcon &icon);
 	void SetAppearanceIcon(const QIcon &icon);
@@ -83,6 +85,8 @@ public:
 	void SaveVerticalSettings();
 	void LoadOutputStats(std::vector<video_t *> *oldVideos);
 	void SetNewerVersion(QString newer_version_available);
+	void SetKeychainEnabled(bool enabled);
+	bool IsKeychainEnabled() const;
 
 public slots:
 };

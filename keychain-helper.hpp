@@ -2,12 +2,6 @@
 
 #include <string>
 
-#ifdef __APPLE__
-#define KEYCHAIN_AVAILABLE 1
-#else
-#define KEYCHAIN_AVAILABLE 0
-#endif
-
 // Service name prefix for keychain entries
 #define KEYCHAIN_SERVICE_PREFIX "com.aitum.multistream."
 
@@ -49,5 +43,11 @@ bool delete_secret(const std::string &service_name, const std::string &account);
  * Returns "com.aitum.multistream.<output_name>"
  */
 std::string make_service_name(const std::string &output_name);
+
+/**
+ * Build a keychain service name for a vertical canvas output.
+ * Returns "com.aitum.multistream.vertical.<output_name>"
+ */
+std::string make_vertical_service_name(const std::string &output_name);
 
 } // namespace keychain

@@ -111,6 +111,12 @@ OBSBasicSettings::OBSBasicSettings(QMainWindow *parent) : QDialog(parent)
 	infoLabel->setWordWrap(true);
 	infoLayout->addWidget(infoLabel, 1);
 
+#ifdef __APPLE__
+	keychainCheckbox = new QCheckBox(QString::fromUtf8(obs_module_text("KeychainSettingLabel")));
+	keychainCheckbox->setToolTip(QString::fromUtf8(obs_module_text("KeychainSettingTooltip")));
+	infoLayout->addWidget(keychainCheckbox);
+#endif
+
 	auto buttonGroupBox = new QWidget();
 	auto buttonLayout = new QHBoxLayout;
 	buttonLayout->setSpacing(8);
@@ -924,14 +930,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
 	removeButton->setProperty("class", "icon-minus");
 	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings, outputs] {
-#if KEYCHAIN_AVAILABLE
 		// Clean up keychain entry when an output is removed
 		auto rm_name = obs_data_get_string(settings, "name");
 		if (rm_name && rm_name[0] != '\0') {
-			auto svc = keychain::make_service_name(rm_name);
+			bool is_vertical = (outputs == vertical_outputs);
+			auto svc = is_vertical ? keychain::make_vertical_service_name(rm_name)
+					       : keychain::make_service_name(rm_name);
 			keychain::delete_secret(svc, rm_name);
 		}
-#endif
 		outputsLayout->removeWidget(serverGroup);
 		RemoveWidget(serverGroup);
 		auto count = obs_data_array_count(outputs);
@@ -961,13 +967,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			&otherNames);
 		otherNames.removeDuplicates();
 		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
-#if KEYCHAIN_AVAILABLE
 		// Capture the old name before editing, so we can clean up keychain if renamed
 		std::string old_output_name = obs_data_get_string(settings, "name");
-#endif
+		auto kc_svc = obs_data_get_string(settings, "keychain_service");
+		bool has_keychain = kc_svc && kc_svc[0] != '\0';
 		auto outputDialog = new OutputDialog(this, obs_data_get_string(settings, "name"),
 						     obs_data_get_string(settings, "stream_server"),
-						     obs_data_get_string(settings, "stream_key"), otherNames);
+						     obs_data_get_string(settings, "stream_key"), otherNames,
+						     has_keychain);
 
 		outputDialog->setWindowModality(Qt::WindowModal);
 		outputDialog->setModal(true);
@@ -978,14 +985,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 			if (outputs == vertical_outputs)
 				obs_data_set_bool(settings, "enabled", true);
-#if KEYCHAIN_AVAILABLE
 			// If output was renamed, delete the old keychain entry
 			std::string new_name = outputDialog->outputName.toUtf8().constData();
 			if (!old_output_name.empty() && old_output_name != new_name) {
-				auto old_svc = keychain::make_service_name(old_output_name);
+				bool is_vertical = (outputs == vertical_outputs);
+				auto old_svc = is_vertical ? keychain::make_vertical_service_name(old_output_name)
+							   : keychain::make_service_name(old_output_name);
 				keychain::delete_secret(old_svc, old_output_name);
 			}
-#endif
 			// Set the info from the output dialog
 			obs_data_set_string(settings, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(settings, "stream_server", outputDialog->outputServer.toUtf8().constData());
@@ -1034,6 +1041,9 @@ void OBSBasicSettings::LoadVerticalSettings(bool load)
 			obs_data_array_release(vertical_outputs);
 		vertical_outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 		calldata_free(&cd);
+
+		// Stream keys are NOT hydrated — they stay in Keychain and are
+		// retrieved on-demand at stream start time.
 	}
 	obs_data_array_enum(
 		vertical_outputs,
@@ -1048,12 +1058,44 @@ void OBSBasicSettings::SaveVerticalSettings()
 {
 	if (!vertical_outputs)
 		return;
+
+	bool useKeychain = IsKeychainEnabled();
+
+	// When Keychain is enabled, store vertical output stream keys in Keychain
+	// and strip from data before sending to the vertical plugin.
+	auto sanitized = obs_data_array_create();
+	auto count = obs_data_array_count(vertical_outputs);
+	for (size_t i = 0; i < count; i++) {
+		auto output = obs_data_array_item(vertical_outputs, i);
+		if (!output)
+			continue;
+		auto json = obs_data_get_json(output);
+		auto copy = obs_data_create_from_json(json);
+
+		if (useKeychain) {
+			auto name = obs_data_get_string(copy, "name");
+			auto key = obs_data_get_string(copy, "stream_key");
+			if (name && name[0] != '\0' && key && key[0] != '\0') {
+				auto svc = keychain::make_vertical_service_name(name);
+				if (keychain::store_secret(svc, name, key)) {
+					obs_data_set_string(copy, "keychain_service", svc.c_str());
+					obs_data_erase(copy, "stream_key");
+				}
+			}
+		}
+
+		obs_data_array_push_back(sanitized, copy);
+		obs_data_release(copy);
+		obs_data_release(output);
+	}
+
 	auto ph = obs_get_proc_handler();
 	struct calldata cd;
 	calldata_init(&cd);
-	calldata_set_ptr(&cd, "outputs", vertical_outputs);
+	calldata_set_ptr(&cd, "outputs", sanitized);
 	proc_handler_call(ph, "aitum_vertical_set_stream_settings", &cd);
 	calldata_free(&cd);
+	obs_data_array_release(sanitized);
 }
 
 void OBSBasicSettings::LoadSettings(obs_data_t *settings)
@@ -1497,4 +1539,23 @@ void OBSBasicSettings::SetNewerVersion(QString newer_version_available)
 		return;
 	newVersion->setText(QString::fromUtf8(obs_module_text("NewVersion")).arg(newer_version_available));
 	newVersion->setVisible(true);
+}
+
+void OBSBasicSettings::SetKeychainEnabled(bool enabled)
+{
+#ifdef __APPLE__
+	if (keychainCheckbox)
+		keychainCheckbox->setChecked(enabled);
+#else
+	UNUSED_PARAMETER(enabled);
+#endif
+}
+
+bool OBSBasicSettings::IsKeychainEnabled() const
+{
+#ifdef __APPLE__
+	return keychainCheckbox && keychainCheckbox->isChecked();
+#else
+	return false;
+#endif
 }

@@ -12,6 +12,11 @@ std::string make_service_name(const std::string &output_name)
 	return std::string(KEYCHAIN_SERVICE_PREFIX) + output_name;
 }
 
+std::string make_vertical_service_name(const std::string &output_name)
+{
+	return std::string(KEYCHAIN_SERVICE_PREFIX) + "vertical." + output_name;
+}
+
 bool store_secret(const std::string &, const std::string &, const std::string &)
 {
 	return false;

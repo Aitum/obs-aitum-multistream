@@ -13,6 +13,11 @@ std::string make_service_name(const std::string &output_name)
 	return std::string(KEYCHAIN_SERVICE_PREFIX) + output_name;
 }
 
+std::string make_vertical_service_name(const std::string &output_name)
+{
+	return std::string(KEYCHAIN_SERVICE_PREFIX) + "vertical." + output_name;
+}
+
 bool store_secret(const std::string &service_name, const std::string &account, const std::string &secret)
 {
 	if (service_name.empty() || secret.empty())
@@ -73,7 +78,7 @@ bool store_secret(const std::string &service_name, const std::string &account, c
 		return false;
 	}
 
-	blog(LOG_INFO, "[Aitum Multistream] Keychain: stored secret for service '%s'", service_name.c_str());
+	blog(LOG_DEBUG, "[Aitum Multistream] Keychain: stored secret for service '%s'", service_name.c_str());
 	return true;
 }
 
@@ -120,7 +125,7 @@ std::string retrieve_secret(const std::string &service_name, const std::string &
 	std::string secret((const char *)CFDataGetBytePtr(data), (size_t)CFDataGetLength(data));
 	CFRelease(result);
 
-	blog(LOG_INFO, "[Aitum Multistream] Keychain: retrieved secret for service '%s'", service_name.c_str());
+	blog(LOG_DEBUG, "[Aitum Multistream] Keychain: retrieved secret for service '%s'", service_name.c_str());
 	return secret;
 }
 
@@ -158,7 +163,7 @@ bool delete_secret(const std::string &service_name, const std::string &account)
 		return false;
 	}
 
-	blog(LOG_INFO, "[Aitum Multistream] Keychain: deleted secret for service '%s'", service_name.c_str());
+	blog(LOG_DEBUG, "[Aitum Multistream] Keychain: deleted secret for service '%s'", service_name.c_str());
 	return true;
 }
 

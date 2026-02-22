@@ -55,10 +55,12 @@ private:
 
 	QStackedWidget *stackedWidget;
 	QStringList otherNames;
+	bool keychainStored = false;
 
 public:
 	OutputDialog(QDialog *parent, QStringList otherNames);
-	OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList otherNames);
+	OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList otherNames,
+		     bool keychainStored = false);
 	~OutputDialog();
 
 	QString outputName;

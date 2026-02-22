@@ -324,9 +324,11 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		configDialog->LoadVerticalSettings(true);
 		configDialog->LoadOutputStats(&oldVideo);
 		configDialog->SetNewerVersion(newer_version_available);
+		configDialog->SetKeychainEnabled(keychainEnabled);
 		configDialog->setResult(QDialog::Rejected);
 		if (configDialog->exec() == QDialog::Accepted) {
 			if (current_config) {
+				keychainEnabled = configDialog->IsKeychainEnabled();
 				obs_data_apply(current_config, settings);
 				obs_data_release(settings);
 				SaveSettings();
@@ -528,6 +530,7 @@ void MultistreamDock::LoadSettingsFile()
 		blog(LOG_INFO, "[Aitum Multistream] Loaded configuration file");
 	}
 	partnerBlockTime = obs_data_get_int(config, "partner_block");
+	keychainEnabled = obs_data_get_bool(config, "keychain_enabled");
 
 	auto profiles = obs_data_get_array(config, "profiles");
 	auto pc = obs_data_array_count(profiles);
@@ -557,31 +560,10 @@ void MultistreamDock::LoadSettingsFile()
 	bfree(profile);
 	current_config = pd;
 
-#if KEYCHAIN_AVAILABLE
-	// Hydrate stream keys from Keychain into in-memory config.
-	// The on-disk config stores keychain_service references instead of stream_key.
-	{
-		auto outputs_arr = obs_data_get_array(current_config, "outputs");
-		if (outputs_arr) {
-			auto count = obs_data_array_count(outputs_arr);
-			for (size_t i = 0; i < count; i++) {
-				auto output = obs_data_array_item(outputs_arr, i);
-				if (!output)
-					continue;
-				auto kc_svc = obs_data_get_string(output, "keychain_service");
-				auto oname = obs_data_get_string(output, "name");
-				if (kc_svc && kc_svc[0] != '\0' && oname && oname[0] != '\0') {
-					auto secret = keychain::retrieve_secret(kc_svc, oname);
-					if (!secret.empty()) {
-						obs_data_set_string(output, "stream_key", secret.c_str());
-					}
-				}
-				obs_data_release(output);
-			}
-			obs_data_array_release(outputs_arr);
-		}
-	}
-#endif
+	// Stream keys are NOT hydrated into in-memory config.
+	// They stay in Keychain and are retrieved on-demand at stream start time
+	// (see StartOutput fallback). This prevents keys from leaking into the
+	// edit UI or being held in memory unnecessarily.
 
 	LoadSettings();
 }
@@ -795,6 +777,7 @@ void MultistreamDock::SaveSettings()
 		blog(LOG_WARNING, "[Aitum Multistream] New configuration file");
 	}
 	obs_data_set_int(config, "partner_block", partnerBlockTime);
+	obs_data_set_bool(config, "keychain_enabled", keychainEnabled);
 	auto profiles = obs_data_get_array(config, "profiles");
 	if (!profiles) {
 		profiles = obs_data_array_create();
@@ -827,10 +810,9 @@ void MultistreamDock::SaveSettings()
 	if (current_config)
 		obs_data_apply(pd, current_config);
 
-#if KEYCHAIN_AVAILABLE
-	// Move stream keys from the on-disk data into macOS Keychain.
-	// The in-memory current_config keeps stream_key for runtime use.
-	{
+	// When Keychain storage is enabled, move stream keys from the on-disk
+	// data into macOS Keychain so they don't sit in plaintext config.
+	if (keychainEnabled) {
 		auto outputs_arr = obs_data_get_array(pd, "outputs");
 		if (outputs_arr) {
 			auto count = obs_data_array_count(outputs_arr);
@@ -844,7 +826,7 @@ void MultistreamDock::SaveSettings()
 					auto svc = keychain::make_service_name(name);
 					if (keychain::store_secret(svc, name, key)) {
 						obs_data_set_string(output, "keychain_service", svc.c_str());
-						obs_data_unset_user_value(output, "stream_key");
+						obs_data_erase(output, "stream_key");
 					}
 				}
 				obs_data_release(output);
@@ -852,7 +834,6 @@ void MultistreamDock::SaveSettings()
 			obs_data_array_release(outputs_arr);
 		}
 	}
-#endif
 
 	obs_data_release(pd);
 
@@ -1015,7 +996,6 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		if (key && strlen(key))
 			obs_data_set_string(settings, "stream_key", key);
 	}
-#if KEYCHAIN_AVAILABLE
 	// Fallback: if stream_key is still empty, try retrieving from Keychain
 	std::string keychain_key_storage;
 	if (!key || !strlen(key)) {
@@ -1028,7 +1008,6 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			}
 		}
 	}
-#endif
 	if (whip) {
 		obs_data_set_string(s, "bearer_token", key);
 	} else {
@@ -1234,6 +1213,10 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 	vertical_outputs = (obs_data_array_t *)calldata_ptr(&cd, "outputs");
 
 	calldata_free(&cd);
+
+	// Stream keys are NOT hydrated — they stay in Keychain and are
+	// retrieved on-demand at stream start time.
+
 	int idx = 0;
 	while (auto item = verticalCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();

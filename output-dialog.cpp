@@ -38,7 +38,7 @@ void OutputDialog::validateOutputs(QPushButton *confirmButton)
 		confirmButton->setEnabled(false);
 	} else if (outputServer.isEmpty()) {
 		confirmButton->setEnabled(false);
-	} else if (outputKey.isEmpty()) {
+	} else if (outputKey.isEmpty() && !keychainStored) {
 		confirmButton->setEnabled(false);
 	} else {
 		confirmButton->setEnabled(true);
@@ -175,7 +175,11 @@ QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton, bool
 	auto field = new StreamKeyInput;
 	field->setStyleSheet("padding: 4px 8px;");
 
-	if (edit) { // edit mode, set field value from output value
+	if (edit && keychainStored) {
+		// Key is stored in Keychain — show placeholder, don't expose the key
+		field->setPlaceholderText(QString::fromUtf8(obs_module_text("StreamKeySavedInKeychain")));
+		field->setReadOnly(true);
+	} else if (edit) {
 		field->setText(outputKey);
 	}
 
@@ -183,7 +187,10 @@ QLineEdit *OutputDialog::generateOutputKeyField(QPushButton *confirmButton, bool
 	field->setEchoMode(StreamKeyInput::EchoMode::Password);
 
 	// On focus, show field
-	connect(field, &StreamKeyInput::focusGained, [this, field] { field->setEchoMode(StreamKeyInput::EchoMode::Normal); });
+	connect(field, &StreamKeyInput::focusGained, [this, field] {
+		if (!keychainStored)
+			field->setEchoMode(StreamKeyInput::EchoMode::Normal);
+	});
 
 	// On blur, hide field
 	connect(field, &StreamKeyInput::focusLost, [this, field] { field->setEchoMode(StreamKeyInput::EchoMode::Password); });
@@ -324,9 +331,11 @@ OutputDialog::OutputDialog(QDialog *parent, QStringList _otherNames) : QDialog(p
 }
 
 // Edit mode
-OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList _otherNames)
+OutputDialog::OutputDialog(QDialog *parent, QString name, QString server, QString key, QStringList _otherNames,
+			   bool _keychainStored)
 	: QDialog(parent),
-	  otherNames(_otherNames)
+	  otherNames(_otherNames),
+	  keychainStored(_keychainStored)
 {
 
 	// Load the services from rtmp-services plugin

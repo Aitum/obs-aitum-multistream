@@ -1,4 +1,5 @@
 #include "config-utils.hpp"
+#include "keychain-helper.hpp"
 #include "multistream.hpp"
 #include "obs-module.h"
 #include "version.h"
@@ -798,6 +799,34 @@ void MultistreamDock::SaveSettings()
 	bfree(profile);
 	if (current_config)
 		obs_data_apply(pd, current_config);
+
+#if KEYCHAIN_AVAILABLE
+	// Move stream keys from the on-disk data into macOS Keychain.
+	// The in-memory current_config keeps stream_key for runtime use.
+	{
+		auto outputs_arr = obs_data_get_array(pd, "outputs");
+		if (outputs_arr) {
+			auto count = obs_data_array_count(outputs_arr);
+			for (size_t i = 0; i < count; i++) {
+				auto output = obs_data_array_item(outputs_arr, i);
+				if (!output)
+					continue;
+				auto name = obs_data_get_string(output, "name");
+				auto key = obs_data_get_string(output, "stream_key");
+				if (name && name[0] != '\0' && key && key[0] != '\0') {
+					auto svc = keychain::make_service_name(name);
+					if (keychain::store_secret(svc, name, key)) {
+						obs_data_set_string(output, "keychain_service", svc.c_str());
+						obs_data_unset_user_value(output, "stream_key");
+					}
+				}
+				obs_data_release(output);
+			}
+			obs_data_array_release(outputs_arr);
+		}
+	}
+#endif
+
 	obs_data_release(pd);
 
 	if (obs_data_save_json_safe(config, path, "tmp", "bak")) {

@@ -556,6 +556,33 @@ void MultistreamDock::LoadSettingsFile()
 	}
 	bfree(profile);
 	current_config = pd;
+
+#if KEYCHAIN_AVAILABLE
+	// Hydrate stream keys from Keychain into in-memory config.
+	// The on-disk config stores keychain_service references instead of stream_key.
+	{
+		auto outputs_arr = obs_data_get_array(current_config, "outputs");
+		if (outputs_arr) {
+			auto count = obs_data_array_count(outputs_arr);
+			for (size_t i = 0; i < count; i++) {
+				auto output = obs_data_array_item(outputs_arr, i);
+				if (!output)
+					continue;
+				auto kc_svc = obs_data_get_string(output, "keychain_service");
+				auto oname = obs_data_get_string(output, "name");
+				if (kc_svc && kc_svc[0] != '\0' && oname && oname[0] != '\0') {
+					auto secret = keychain::retrieve_secret(kc_svc, oname);
+					if (!secret.empty()) {
+						obs_data_set_string(output, "stream_key", secret.c_str());
+					}
+				}
+				obs_data_release(output);
+			}
+			obs_data_array_release(outputs_arr);
+		}
+	}
+#endif
+
 	LoadSettings();
 }
 
@@ -988,6 +1015,20 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 		if (key && strlen(key))
 			obs_data_set_string(settings, "stream_key", key);
 	}
+#if KEYCHAIN_AVAILABLE
+	// Fallback: if stream_key is still empty, try retrieving from Keychain
+	std::string keychain_key_storage;
+	if (!key || !strlen(key)) {
+		auto kc_svc = obs_data_get_string(settings, "keychain_service");
+		if (kc_svc && kc_svc[0] != '\0') {
+			keychain_key_storage = keychain::retrieve_secret(kc_svc, name);
+			if (!keychain_key_storage.empty()) {
+				key = keychain_key_storage.c_str();
+				obs_data_set_string(settings, "stream_key", key);
+			}
+		}
+	}
+#endif
 	if (whip) {
 		obs_data_set_string(s, "bearer_token", key);
 	} else {

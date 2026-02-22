@@ -32,6 +32,7 @@
 #include <util/config-file.h>
 #include "output-dialog.hpp"
 #include "config-utils.hpp"
+#include "keychain-helper.hpp"
 
 #ifndef _WIN32
 #include <dlfcn.h>
@@ -923,6 +924,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 	removeButton->setProperty("themeID", QVariant(QString::fromUtf8("removeIconSmall")));
 	removeButton->setProperty("class", "icon-minus");
 	connect(removeButton, &QPushButton::clicked, [this, outputsLayout, serverGroup, settings, outputs] {
+#if KEYCHAIN_AVAILABLE
+		// Clean up keychain entry when an output is removed
+		auto rm_name = obs_data_get_string(settings, "name");
+		if (rm_name && rm_name[0] != '\0') {
+			auto svc = keychain::make_service_name(rm_name);
+			keychain::delete_secret(svc, rm_name);
+		}
+#endif
 		outputsLayout->removeWidget(serverGroup);
 		RemoveWidget(serverGroup);
 		auto count = obs_data_array_count(outputs);
@@ -952,6 +961,10 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 			&otherNames);
 		otherNames.removeDuplicates();
 		otherNames.removeOne(QString::fromUtf8(obs_data_get_string(settings, "name")));
+#if KEYCHAIN_AVAILABLE
+		// Capture the old name before editing, so we can clean up keychain if renamed
+		std::string old_output_name = obs_data_get_string(settings, "name");
+#endif
 		auto outputDialog = new OutputDialog(this, obs_data_get_string(settings, "name"),
 						     obs_data_get_string(settings, "stream_server"),
 						     obs_data_get_string(settings, "stream_key"), otherNames);
@@ -965,6 +978,14 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 			if (outputs == vertical_outputs)
 				obs_data_set_bool(settings, "enabled", true);
+#if KEYCHAIN_AVAILABLE
+			// If output was renamed, delete the old keychain entry
+			std::string new_name = outputDialog->outputName.toUtf8().constData();
+			if (!old_output_name.empty() && old_output_name != new_name) {
+				auto old_svc = keychain::make_service_name(old_output_name);
+				keychain::delete_secret(old_svc, old_output_name);
+			}
+#endif
 			// Set the info from the output dialog
 			obs_data_set_string(settings, "name", outputDialog->outputName.toUtf8().constData());
 			obs_data_set_string(settings, "stream_server", outputDialog->outputServer.toUtf8().constData());

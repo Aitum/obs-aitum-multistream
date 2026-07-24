@@ -719,7 +719,8 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit)
 
 	// Server key
 	auto outputKeyField = generateOutputKeyField(confirmButton, edit);
-	formLayout->addRow(generateFormLabel("CustomStreamKey"), outputKeyField);
+	auto keyLabel = generateFormLabel("CustomStreamKey");
+	formLayout->addRow(keyLabel, outputKeyField);
 
 	// Server key info
 	formLayout->addWidget(generateInfoLabel("CustomStreamKeyInfo"));
@@ -741,6 +742,39 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit)
 	// confirm button (initialised above so we can set state)
 	connect(confirmButton, &QPushButton::clicked, [this] { acceptOutputs(); });
 
+	// Custom validation for this page that allows optional streamkey for SRT
+	auto validateCustom = [this, outputNameField, serverSelection, outputKeyField, confirmButton, keyLabel] {
+		outputName = outputNameField->text();
+		outputServer = serverSelection->text();
+		outputKey = outputKeyField->text();
+		
+		// Check if streamkey is required for this server URL
+		bool keyRequired = !outputServer.toLower().startsWith("srt://");
+		
+		// Update label to show "(optional)" for SRT
+		if (outputServer.toLower().startsWith("srt://")) {
+			keyLabel->setText(QString::fromUtf8(obs_module_text("CustomStreamKey")) + QString::fromUtf8(" (") + QString::fromUtf8(obs_module_text("Optional")) + QString::fromUtf8(")"));
+		} else {
+			keyLabel->setText(QString::fromUtf8(obs_module_text("CustomStreamKey")));
+		}
+		
+		// Validate
+		if (outputName.isEmpty() || otherNames.contains(outputName)) {
+			confirmButton->setEnabled(false);
+		} else if (outputServer.isEmpty()) {
+			confirmButton->setEnabled(false);
+		} else if (keyRequired && outputKey.isEmpty()) {
+			confirmButton->setEnabled(false);
+		} else {
+			confirmButton->setEnabled(true);
+		}
+	};
+
+	// Connect all fields to custom validation
+	connect(outputNameField, &QLineEdit::textEdited, validateCustom);
+	connect(serverSelection, &QLineEdit::textChanged, validateCustom);
+	connect(outputKeyField, &QLineEdit::textEdited, validateCustom);
+
 	// Hook it all together
 	pageLayout->addLayout(controlsLayout, 1);
 	page->setLayout(pageLayout);
@@ -748,12 +782,9 @@ QWidget *OutputDialog::WizardInfoUnknown(bool edit)
 	// Defaults for when we're changed to
 	if (!edit) {
 		connect(stackedWidget, &QStackedWidget::currentChanged,
-			[this, outputNameField, serverSelection, outputKeyField, confirmButton] {
+			[this, validateCustom] {
 				if (stackedWidget->currentIndex() == 4) {
-					outputName = outputNameField->text();
-					outputServer = serverSelection->text();
-					outputKey = outputKeyField->text();
-					validateOutputs(confirmButton);
+					validateCustom();
 				}
 			});
 	}

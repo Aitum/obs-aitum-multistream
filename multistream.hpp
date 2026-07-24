@@ -46,7 +46,7 @@ private:
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
-	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
+	bool StartOutput(obs_data_t *settings, QPushButton *streamButton, bool interactive = true);
 
 	void outputButtonStyle(QPushButton *button);
 
@@ -69,6 +69,17 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
+
+	// Remote control via the obs-websocket vendor ("aitum-multistream").
+	// The Remote* methods run on the UI thread (invoked queued from the
+	// websocket thread) and never show dialogs; the Fill* methods run on the
+	// UI thread via a blocking invoke and only read state.
+	Q_INVOKABLE void RemoteStartOutput(const QString &name);
+	Q_INVOKABLE void RemoteStopOutput(const QString &name);
+	Q_INVOKABLE void RemoteStartVerticalOutput(const QString &name);
+	Q_INVOKABLE void RemoteStopVerticalOutput(const QString &name);
+	void FillStatus(obs_data_t *response_data);
+	void FillOutputs(obs_data_t *response_data);
 };
 
 class AspectRatioPixmapLabel : public QLabel {

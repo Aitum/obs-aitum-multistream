@@ -3,6 +3,7 @@
 #include "obs-module.h"
 #include "version.h"
 #include <obs-frontend-api.h>
+#include "obs-websocket-api.h"
 #include <QDesktopServices>
 #include <QGroupBox>
 #include <QLabel>
@@ -23,6 +24,8 @@ OBS_MODULE_AUTHOR("Aitum");
 OBS_MODULE_USE_DEFAULT_LOCALE("aitum-multistream", "en-US")
 
 static MultistreamDock *multistream_dock = nullptr;
+
+static obs_websocket_vendor websocket_vendor = nullptr;
 
 update_info_t *version_update_info = nullptr;
 
@@ -61,20 +64,131 @@ bool obs_module_load(void)
 	return true;
 }
 
+// ---- obs-websocket vendor ("aitum-multistream") -------------------------
+// Mirrors the vendor the Vertical Canvas plugin ships: reads answer directly
+// (blocking hop to the UI thread), actions are queued fire-and-forget so the
+// websocket thread never waits on encoder setup. Stream keys are never
+// included in any response.
+
+static void vendor_request_status(obs_data_t *request_data, obs_data_t *response_data, void *)
+{
+	UNUSED_PARAMETER(request_data);
+	if (!multistream_dock) {
+		obs_data_set_bool(response_data, "success", false);
+		return;
+	}
+	QMetaObject::invokeMethod(
+		multistream_dock, [response_data] { multistream_dock->FillStatus(response_data); },
+		Qt::BlockingQueuedConnection);
+}
+
+static void vendor_request_get_outputs(obs_data_t *request_data, obs_data_t *response_data, void *)
+{
+	UNUSED_PARAMETER(request_data);
+	if (!multistream_dock) {
+		obs_data_set_bool(response_data, "success", false);
+		return;
+	}
+	QMetaObject::invokeMethod(
+		multistream_dock, [response_data] { multistream_dock->FillOutputs(response_data); },
+		Qt::BlockingQueuedConnection);
+}
+
+enum class VendorOutputAction { Start, Stop, StartVertical, StopVertical };
+
+static void vendor_request_output_action(obs_data_t *request_data, obs_data_t *response_data, VendorOutputAction action)
+{
+	const char *name = obs_data_get_string(request_data, "name");
+	if (!name || !*name) {
+		obs_data_set_bool(response_data, "success", false);
+		obs_data_set_string(response_data, "error", "'name' not set");
+		return;
+	}
+	if (!multistream_dock) {
+		obs_data_set_bool(response_data, "success", false);
+		obs_data_set_string(response_data, "error", "dock not loaded");
+		return;
+	}
+	QString qname = QString::fromUtf8(name);
+	QMetaObject::invokeMethod(
+		multistream_dock,
+		[qname, action] {
+			if (!multistream_dock)
+				return;
+			switch (action) {
+			case VendorOutputAction::Start:
+				multistream_dock->RemoteStartOutput(qname);
+				break;
+			case VendorOutputAction::Stop:
+				multistream_dock->RemoteStopOutput(qname);
+				break;
+			case VendorOutputAction::StartVertical:
+				multistream_dock->RemoteStartVerticalOutput(qname);
+				break;
+			case VendorOutputAction::StopVertical:
+				multistream_dock->RemoteStopVerticalOutput(qname);
+				break;
+			}
+		},
+		Qt::QueuedConnection);
+	obs_data_set_bool(response_data, "success", true);
+	obs_data_set_bool(response_data, "accepted", true);
+}
+
+static void vendor_request_start_output(obs_data_t *rd, obs_data_t *res, void *)
+{
+	vendor_request_output_action(rd, res, VendorOutputAction::Start);
+}
+static void vendor_request_stop_output(obs_data_t *rd, obs_data_t *res, void *)
+{
+	vendor_request_output_action(rd, res, VendorOutputAction::Stop);
+}
+static void vendor_request_start_vertical_output(obs_data_t *rd, obs_data_t *res, void *)
+{
+	vendor_request_output_action(rd, res, VendorOutputAction::StartVertical);
+}
+static void vendor_request_stop_vertical_output(obs_data_t *rd, obs_data_t *res, void *)
+{
+	vendor_request_output_action(rd, res, VendorOutputAction::StopVertical);
+}
+
 void obs_module_post_load()
 {
 	if (multistream_dock)
 		multistream_dock->LoadVerticalOutputs(true);
+
+	websocket_vendor = obs_websocket_register_vendor("aitum-multistream");
+	if (websocket_vendor) {
+		obs_websocket_vendor_register_request(websocket_vendor, "status", vendor_request_status, nullptr);
+		obs_websocket_vendor_register_request(websocket_vendor, "get_outputs", vendor_request_get_outputs, nullptr);
+		obs_websocket_vendor_register_request(websocket_vendor, "start_output", vendor_request_start_output, nullptr);
+		obs_websocket_vendor_register_request(websocket_vendor, "stop_output", vendor_request_stop_output, nullptr);
+		obs_websocket_vendor_register_request(websocket_vendor, "start_vertical_output",
+						      vendor_request_start_vertical_output, nullptr);
+		obs_websocket_vendor_register_request(websocket_vendor, "stop_vertical_output",
+						      vendor_request_stop_vertical_output, nullptr);
+		blog(LOG_INFO, "[Aitum Multistream] registered obs-websocket vendor 'aitum-multistream'");
+	}
 }
 
 void obs_module_unload()
 {
+	if (websocket_vendor) {
+		obs_websocket_vendor_unregister_request(websocket_vendor, "status");
+		obs_websocket_vendor_unregister_request(websocket_vendor, "get_outputs");
+		obs_websocket_vendor_unregister_request(websocket_vendor, "start_output");
+		obs_websocket_vendor_unregister_request(websocket_vendor, "stop_output");
+		obs_websocket_vendor_unregister_request(websocket_vendor, "start_vertical_output");
+		obs_websocket_vendor_unregister_request(websocket_vendor, "stop_vertical_output");
+		websocket_vendor = nullptr;
+	}
 	if (version_update_info) {
 		update_info_destroy(version_update_info);
 		version_update_info = nullptr;
 	}
 	if (multistream_dock) {
 		delete multistream_dock;
+		multistream_dock = nullptr;
 	}
 }
 
@@ -820,13 +934,13 @@ void MultistreamDock::SaveSettings()
 	bfree(path);
 }
 
-bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton)
+bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton, bool interactive)
 {
 	if (!settings)
 		return false;
 
 	bool warnBeforeStreamStart = config_get_bool(get_user_config(), "BasicWindow", "WarnBeforeStartingStream");
-	if (warnBeforeStreamStart && isVisible()) {
+	if (interactive && warnBeforeStreamStart && isVisible()) {
 		auto button = QMessageBox::question(this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
 						    QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
 						    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
@@ -860,8 +974,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_output_release(main_output);
 				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 				     obs_data_get_string(settings, "name"));
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+				if (interactive)
+					QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
+							     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
 			auto vei = (int)obs_data_get_int(settings, "video_encoder_index");
@@ -871,8 +986,10 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				blog(LOG_WARNING,
 				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
 				     obs_data_get_string(settings, "name"), vei);
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
-						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				if (interactive)
+					QMessageBox::warning(this,
+							     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
+							     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
 				return false;
 			}
 		} else {
@@ -907,8 +1024,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_output_release(main_output);
 				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 				     obs_data_get_string(settings, "name"));
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+				if (interactive)
+					QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
+							     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 				return false;
 			}
 			auto aei = (int)obs_data_get_int(settings, "audio_encoder_index");
@@ -918,8 +1036,10 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				blog(LOG_WARNING,
 				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
 				     obs_data_get_string(settings, "name"), aei);
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
-						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				if (interactive)
+					QMessageBox::warning(this,
+							     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
+							     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
 				return false;
 			}
 		} else {
@@ -944,8 +1064,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			obs_output_release(main_output);
 			blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 			     obs_data_get_string(settings, "name"));
-			QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-					     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+			if (interactive)
+				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
+						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
 			return false;
 		}
 
@@ -1191,6 +1312,222 @@ void MultistreamDock::LoadVerticalOutputs(bool firstLoad)
 			d->LoadOutput(data2, true);
 		},
 		this);
+}
+
+// ---- Remote control (obs-websocket vendor) -------------------------------
+// All of these run on the UI thread and never show dialogs.
+
+void MultistreamDock::RemoteStartOutput(const QString &name)
+{
+	if (!current_config)
+		return;
+	auto nameUtf8 = name.toUtf8();
+	// Already running? The dock click path and this method both run on the UI
+	// thread, so this check is the authoritative double-start guard.
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) == nameUtf8.constData() &&
+		    obs_output_active(std::get<obs_output_t *>(*it))) {
+			blog(LOG_INFO, "[Aitum Multistream] remote start ignored, '%s' already active", nameUtf8.constData());
+			return;
+		}
+	}
+	obs_data_t *found = nullptr;
+	auto outputs2 = obs_data_get_array(current_config, "outputs");
+	auto count = obs_data_array_count(outputs2);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(outputs2, i);
+		if (!item)
+			continue;
+		if (name == QString::fromUtf8(obs_data_get_string(item, "name"))) {
+			found = item;
+			break;
+		}
+		obs_data_release(item);
+	}
+	obs_data_array_release(outputs2);
+	if (!found) {
+		blog(LOG_WARNING, "[Aitum Multistream] remote start: no output named '%s'", nameUtf8.constData());
+		return;
+	}
+	// The row widget's toggle button — the signal callbacks require it.
+	QPushButton *streamButton = nullptr;
+	for (int i = 1; i < mainCanvasOutputLayout->count(); i++) {
+		auto item = mainCanvasOutputLayout->itemAt(i);
+		if (item && item->widget() && item->widget()->objectName() == name) {
+			streamButton = item->widget()->findChild<QPushButton *>(QStringLiteral("canvasStream"));
+			break;
+		}
+	}
+	if (!streamButton) {
+		blog(LOG_WARNING, "[Aitum Multistream] remote start: no dock row for '%s'", nameUtf8.constData());
+		obs_data_release(found);
+		return;
+	}
+	blog(LOG_INFO, "[Aitum Multistream] remote start stream '%s'", nameUtf8.constData());
+	if (StartOutput(found, streamButton, false)) {
+		streamButton->setChecked(true);
+	} else {
+		streamButton->setChecked(false);
+	}
+	outputButtonStyle(streamButton);
+	obs_data_release(found);
+}
+
+void MultistreamDock::RemoteStopOutput(const QString &name)
+{
+	auto nameUtf8 = name.toUtf8();
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) != nameUtf8.constData())
+			continue;
+		blog(LOG_INFO, "[Aitum Multistream] remote stop stream '%s'", nameUtf8.constData());
+		obs_queue_task(
+			OBS_TASK_GRAPHICS, [](void *param) { obs_output_stop((obs_output_t *)param); },
+			std::get<obs_output_t *>(*it), false);
+	}
+}
+
+void MultistreamDock::RemoteStartVerticalOutput(const QString &name)
+{
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	calldata_set_string(&cd, "name", name.toUtf8().constData());
+	bool called = proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd);
+	calldata_free(&cd);
+	if (!called) {
+		blog(LOG_WARNING, "[Aitum Multistream] remote vertical start failed (no vertical canvas)");
+		return;
+	}
+	blog(LOG_INFO, "[Aitum Multistream] remote start vertical stream '%s'", name.toUtf8().constData());
+	for (int i = 0; i < verticalCanvasOutputLayout->count(); i++) {
+		auto item = verticalCanvasOutputLayout->itemAt(i);
+		if (item && item->widget() && item->widget()->objectName() == name) {
+			if (auto button = item->widget()->findChild<QPushButton *>(QStringLiteral("canvasStream"))) {
+				button->setChecked(true);
+				outputButtonStyle(button);
+			}
+			break;
+		}
+	}
+}
+
+void MultistreamDock::RemoteStopVerticalOutput(const QString &name)
+{
+	auto ph = obs_get_proc_handler();
+	struct calldata cd;
+	calldata_init(&cd);
+	calldata_set_string(&cd, "name", name.toUtf8().constData());
+	bool called = proc_handler_call(ph, "aitum_vertical_stop_stream_output", &cd);
+	calldata_free(&cd);
+	if (!called)
+		return;
+	blog(LOG_INFO, "[Aitum Multistream] remote stop vertical stream '%s'", name.toUtf8().constData());
+	for (int i = 0; i < verticalCanvasOutputLayout->count(); i++) {
+		auto item = verticalCanvasOutputLayout->itemAt(i);
+		if (item && item->widget() && item->widget()->objectName() == name) {
+			if (auto button = item->widget()->findChild<QPushButton *>(QStringLiteral("canvasStream"))) {
+				button->setChecked(false);
+				outputButtonStyle(button);
+			}
+			break;
+		}
+	}
+}
+
+void MultistreamDock::FillStatus(obs_data_t *response_data)
+{
+	obs_data_set_bool(response_data, "success", true);
+	obs_data_set_string(response_data, "version", PROJECT_VERSION);
+	obs_data_set_int(response_data, "api", 1);
+	obs_data_set_bool(response_data, "main_active", obs_frontend_streaming_active());
+}
+
+void MultistreamDock::FillOutputs(obs_data_t *response_data)
+{
+	auto arr = obs_data_array_create();
+	if (current_config) {
+		auto outputs2 = obs_data_get_array(current_config, "outputs");
+		auto count = obs_data_array_count(outputs2);
+		for (size_t i = 0; i < count; i++) {
+			auto item = obs_data_array_item(outputs2, i);
+			if (!item)
+				continue;
+			auto name = obs_data_get_string(item, "name");
+			if (!name || !*name) {
+				obs_data_release(item);
+				continue;
+			}
+			auto server = obs_data_get_string(item, "stream_server");
+			if (!server || !*server)
+				server = obs_data_get_string(item, "server");
+			auto advanced = obs_data_get_bool(item, "advanced");
+			auto venc = obs_data_get_string(item, "video_encoder");
+			auto aenc = obs_data_get_string(item, "audio_encoder");
+			// Borrowing any main-stream encoder means the output can only
+			// start while the main stream is active.
+			bool requires_main = !advanced || !venc || !*venc || !aenc || !*aenc;
+			bool active = false;
+			for (auto it = outputs.begin(); it != outputs.end(); it++) {
+				if (std::get<std::string>(*it) == name) {
+					active = obs_output_active(std::get<obs_output_t *>(*it));
+					break;
+				}
+			}
+			auto entry = obs_data_create();
+			obs_data_set_string(entry, "name", name);
+			obs_data_set_string(entry, "stream_server", server ? server : "");
+			obs_data_set_bool(entry, "advanced", advanced);
+			obs_data_set_bool(entry, "requires_main", requires_main);
+			obs_data_set_bool(entry, "active", active);
+			obs_data_array_push_back(arr, entry);
+			obs_data_release(entry);
+			obs_data_release(item);
+		}
+		obs_data_array_release(outputs2);
+	}
+	obs_data_set_array(response_data, "outputs", arr);
+	obs_data_array_release(arr);
+
+	// Vertical canvas outputs (via its in-process API). GetStreamOutput adds
+	// a reference, so release after the active check.
+	auto varr = obs_data_array_create();
+	if (vertical_outputs) {
+		auto ph = obs_get_proc_handler();
+		auto count = obs_data_array_count(vertical_outputs);
+		for (size_t i = 0; i < count; i++) {
+			auto item = obs_data_array_item(vertical_outputs, i);
+			if (!item)
+				continue;
+			auto name = obs_data_get_string(item, "name");
+			if (!name || !*name) {
+				obs_data_release(item);
+				continue;
+			}
+			bool active = false;
+			struct calldata cd;
+			calldata_init(&cd);
+			calldata_set_string(&cd, "name", name);
+			if (proc_handler_call(ph, "aitum_vertical_get_stream_output", &cd)) {
+				auto output = (obs_output_t *)calldata_ptr(&cd, "output");
+				if (output) {
+					active = obs_output_active(output);
+					obs_output_release(output);
+				}
+			}
+			calldata_free(&cd);
+			auto entry = obs_data_create();
+			obs_data_set_string(entry, "name", name);
+			obs_data_set_bool(entry, "active", active);
+			obs_data_array_push_back(varr, entry);
+			obs_data_release(entry);
+			obs_data_release(item);
+		}
+	}
+	obs_data_set_array(response_data, "vertical_outputs", varr);
+	obs_data_array_release(varr);
+
+	obs_data_set_bool(response_data, "success", true);
+	obs_data_set_bool(response_data, "main_active", obs_frontend_streaming_active());
 }
 
 void MultistreamDock::storeMainStreamEncoders()

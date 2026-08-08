@@ -83,6 +83,28 @@ const char *obs_module_name(void)
 	return obs_module_text("AitumMultistream");
 }
 
+// Asks an output to stop, from the graphics thread as obs expects.
+//
+// The queued task runs later, so a reference is held for the trip: without one
+// the output's own "stop" signal can land in the meantime, stream_output_stop()
+// drops the plugin's reference, the output is destroyed, and the task then runs
+// against freed memory. obs_output_get_ref() returns null if that already
+// happened, in which case there is nothing left to stop.
+static void StopOutput(obs_output_t *output)
+{
+	output = obs_output_get_ref(output);
+	if (!output)
+		return;
+	obs_queue_task(
+		OBS_TASK_GRAPHICS,
+		[](void *param) {
+			auto o = (obs_output_t *)param;
+			obs_output_stop(o);
+			obs_output_release(o);
+		},
+		output, false);
+}
+
 void RemoveWidget(QWidget *widget);
 
 void RemoveLayoutItem(QLayoutItem *item)
@@ -720,10 +742,7 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 						if (std::get<std::string>(*it) != name2)
 							continue;
 
-						obs_queue_task(
-							OBS_TASK_GRAPHICS,
-							[](void *param) { obs_output_stop((obs_output_t *)param); },
-							std::get<obs_output *>(*it), false);
+						StopOutput(std::get<obs_output_t *>(*it));
 					}
 				} else {
 					streamButton->setChecked(true);
@@ -835,18 +854,36 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	}
 
 	const char *name = obs_data_get_string(settings, "name");
+	// Replacing an output that is still in the list. The order here matters and
+	// the previous order could free the output twice.
+	//
+	// stream_output_stop() also releases the output and erases its entry, and
+	// obs_output_force_stop() raises "stop" synchronously on this very thread,
+	// so the old code re-entered its own cleanup half way through and then
+	// carried on with an iterator into a vector that had been modified.
+	//
+	// So: unhook the signals first, so the handler cannot run at all; take the
+	// entry out of the vector before anything that can re-enter; and only then
+	// release. The disconnects are unconditional -- gating them on
+	// obs_output_active() misses the whole RTMP connect phase, where the output
+	// is not yet active but its signals are already live.
+	obs_output_t *previous = nullptr;
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		if (std::get<std::string>(*it) != name)
 			continue;
-		auto old = std::get<obs_output_t *>(*it);
-		auto service = obs_output_get_service(old);
-		if (obs_output_active(old)) {
-			obs_output_force_stop(old);
-		}
-		obs_output_release(old);
-		obs_service_release(service);
+		previous = std::get<obs_output_t *>(*it);
+		signal_handler_t *previous_signal = obs_output_get_signal_handler(previous);
+		signal_handler_disconnect(previous_signal, "start", stream_output_start, this);
+		signal_handler_disconnect(previous_signal, "stop", stream_output_stop, this);
 		outputs.erase(it);
 		break;
+	}
+	if (previous) {
+		auto service = obs_output_get_service(previous);
+		if (obs_output_active(previous))
+			obs_output_force_stop(previous);
+		obs_output_release(previous);
+		obs_service_release(service);
 	}
 	obs_encoder_t *venc = nullptr;
 	obs_encoder_t *aenc = nullptr;

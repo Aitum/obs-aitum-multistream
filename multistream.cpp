@@ -85,11 +85,10 @@ const char *obs_module_name(void)
 
 // Asks an output to stop, from the graphics thread as obs expects.
 //
-// The queued task runs later, so a reference is held for the trip: without one
-// the output's own "stop" signal can land in the meantime, stream_output_stop()
-// drops the plugin's reference, the output is destroyed, and the task then runs
-// against freed memory. obs_output_get_ref() returns null if that already
-// happened, in which case there is nothing left to stop.
+// Call this on the UI thread with an output still held by `outputs`. The extra
+// reference is for the trip: obs_queue_task runs the task later, and in between
+// the output's own "stop" signal can drop the plugin's reference and destroy
+// it, leaving the task to run against freed memory.
 static void StopOutput(obs_output_t *output)
 {
 	output = obs_output_get_ref(output);
@@ -531,9 +530,33 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 		md->outputButtonStyle(md->mainStreamButton);
 		md->mainStreamButton->setIcon(md->streamActiveIcon);
 		md->storeMainStreamEncoders();
+
+		// Only STARTED, never STARTING. At STARTING the main output has not
+		// been started yet, so obs_output_active() on it is still false and
+		// every output that borrows a main encoder would be refused. STARTING
+		// is also emitted for main starts that then fail straight away, with
+		// no stop event afterwards to undo it.
+		if (event == OBS_FRONTEND_EVENT_STREAMING_STARTED)
+			md->StartOutputsWithMain();
 	} else if (event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
 		md->mainStreamButton->setChecked(false);
 		md->outputButtonStyle(md->mainStreamButton);
+
+		// Only STOPPING: it is the earliest notice, and with OBS's stream
+		// delay enabled STOPPED is held back by the whole delay, which would
+		// leave these outputs running for minutes after the operator pressed
+		// stop.
+		// Both events, not just STOPPING. libobs only raises "stopping" from
+		// obs_output_stop/obs_output_force_stop, so a main stream that drops on
+		// its own -- lost connection, server hang-up -- produces STOPPED with
+		// no STOPPING at all, and these outputs would carry on streaming after
+		// the main one had died. Running twice is harmless: anything stopped at
+		// STOPPING has already left the list by then.
+		//
+		// Note nothing clears pending_auto_stop here. A stop remembered for an
+		// output that is still shaking hands has to outlive the main stream
+		// going down -- that is the whole case it exists for.
+		md->StopOutputsWithMain();
 	}
 }
 
@@ -839,13 +862,121 @@ void MultistreamDock::SaveSettings()
 	bfree(path);
 }
 
-bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton)
+// ---- Following the main output -------------------------------------------
+// Both of these run on the Qt UI thread, from frontend_event.
+
+// Starts every output configured with "start with main output" that is not
+// already running or connecting.
+void MultistreamDock::StartOutputsWithMain()
+{
+	if (!current_config)
+		return;
+	pending_auto_stop.clear();
+	auto outputs2 = obs_data_get_array(current_config, "outputs");
+	if (!outputs2)
+		return;
+	auto count = obs_data_array_count(outputs2);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(outputs2, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		if (!obs_data_get_bool(item, "start_w_main") || !name || !*name) {
+			obs_data_release(item);
+			continue;
+		}
+		// An entry in `outputs` means an output object already exists for this
+		// name, so it is running or still connecting. Leave it alone: starting
+		// it again would tear down what the user already had going. Note that
+		// obs_output_active() is not usable as that test, because it stays
+		// false for the whole connect phase.
+		bool busy = false;
+		for (auto it = outputs.begin(); it != outputs.end(); it++) {
+			if (std::get<std::string>(*it) == name) {
+				busy = true;
+				break;
+			}
+		}
+		if (busy) {
+			blog(LOG_INFO, "[Aitum Multistream] '%s' is already running, not starting it with the main output",
+			     name);
+			obs_data_release(item);
+			continue;
+		}
+		QPushButton *streamButton = nullptr;
+		for (int j = 1; j < mainCanvasOutputLayout->count(); j++) {
+			auto layoutItem = mainCanvasOutputLayout->itemAt(j);
+			if (layoutItem && layoutItem->widget() &&
+			    layoutItem->widget()->objectName() == QString::fromUtf8(name)) {
+				streamButton = layoutItem->widget()->findChild<QPushButton *>(QStringLiteral("canvasStream"));
+				break;
+			}
+		}
+		if (!streamButton) {
+			blog(LOG_WARNING, "[Aitum Multistream] no dock row for '%s', not starting it with the main output",
+			     name);
+			obs_data_release(item);
+			continue;
+		}
+		blog(LOG_INFO, "[Aitum Multistream] starting stream '%s' with the main output", name);
+		bool started = StartOutput(item, streamButton, true);
+		streamButton->setChecked(started);
+		outputButtonStyle(streamButton);
+		obs_data_release(item);
+	}
+	obs_data_array_release(outputs2);
+}
+
+// Stops every output configured with "stop with main output".
+void MultistreamDock::StopOutputsWithMain()
+{
+	if (!current_config)
+		return;
+	auto outputs2 = obs_data_get_array(current_config, "outputs");
+	if (!outputs2)
+		return;
+	auto count = obs_data_array_count(outputs2);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(outputs2, i);
+		if (!item)
+			continue;
+		auto name = obs_data_get_string(item, "name");
+		if (!obs_data_get_bool(item, "stop_w_main") || !name || !*name) {
+			obs_data_release(item);
+			continue;
+		}
+		for (auto it = outputs.begin(); it != outputs.end(); it++) {
+			if (std::get<std::string>(*it) != name)
+				continue;
+			auto output = std::get<obs_output_t *>(*it);
+			if (obs_output_active(output) || obs_output_reconnecting(output)) {
+				blog(LOG_INFO, "[Aitum Multistream] stopping stream '%s' with the main output", name);
+				StopOutput(output);
+			} else {
+				// Still connecting. obs_output_stop() does nothing for an
+				// output that is neither active nor reconnecting, so asking
+				// now would be silently dropped and the output would go live
+				// after the main stream had already gone down. Remember it and
+				// stop it as soon as it reports that it started.
+				blog(LOG_INFO,
+				     "[Aitum Multistream] '%s' is still connecting, it will be stopped as soon as it starts",
+				     name);
+				pending_auto_stop.insert(name);
+			}
+			break;
+		}
+		obs_data_release(item);
+	}
+	obs_data_array_release(outputs2);
+}
+
+bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButton, bool automatic)
 {
 	if (!settings)
 		return false;
 
 	bool warnBeforeStreamStart = config_get_bool(get_user_config(), "BasicWindow", "WarnBeforeStartingStream");
-	if (warnBeforeStreamStart && isVisible()) {
+	if (!automatic && warnBeforeStreamStart && isVisible()) {
 		auto button = QMessageBox::question(this, QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Title")),
 						    QString::fromUtf8(obs_frontend_get_locale_string("ConfirmStart.Text")),
 						    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
@@ -853,7 +984,22 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			return false;
 	}
 
+	// Every failure below is reported through this. An automatic start shows
+	// nothing: there may be nobody at the machine to dismiss it, and one modal
+	// per configured output would wedge OBS entirely. The log line is written
+	// either way, since on an automatic start it is the only feedback there is.
+	auto reportFailure = [this, automatic](const char *locale_key) {
+		if (automatic)
+			return;
+		auto text = QString::fromUtf8(obs_module_text(locale_key));
+		QMessageBox::warning(this, text, text);
+	};
+
 	const char *name = obs_data_get_string(settings, "name");
+	// Starting this name supersedes any stop remembered for it while it was
+	// connecting, whoever asked for the start. Without this the deferred stop
+	// would fire against whatever output holds the name later and kill it.
+	pending_auto_stop.erase(name);
 	// Replacing an output that is still in the list. The order here matters and
 	// the previous order could free the output twice.
 	//
@@ -897,8 +1043,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_output_release(main_output);
 				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 				     obs_data_get_string(settings, "name"));
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+				reportFailure("MainOutputNotActive");
 				return false;
 			}
 			auto vei = (int)obs_data_get_int(settings, "video_encoder_index");
@@ -908,8 +1053,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				blog(LOG_WARNING,
 				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
 				     obs_data_get_string(settings, "name"), vei);
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
-						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				reportFailure("MainOutputEncoderIndexNotFound");
 				return false;
 			}
 		} else {
@@ -944,8 +1088,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				obs_output_release(main_output);
 				blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 				     obs_data_get_string(settings, "name"));
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-						     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+				reportFailure("MainOutputNotActive");
 				return false;
 			}
 			auto aei = (int)obs_data_get_int(settings, "audio_encoder_index");
@@ -955,8 +1098,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 				blog(LOG_WARNING,
 				     "[Aitum Multistream] failed to start stream '%s' because encoder index %d was not found",
 				     obs_data_get_string(settings, "name"), aei);
-				QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")),
-						     QString::fromUtf8(obs_module_text("MainOutputEncoderIndexNotFound")));
+				reportFailure("MainOutputEncoderIndexNotFound");
 				return false;
 			}
 		} else {
@@ -981,8 +1123,7 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			obs_output_release(main_output);
 			blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s' because main was not started",
 			     obs_data_get_string(settings, "name"));
-			QMessageBox::warning(this, QString::fromUtf8(obs_module_text("MainOutputNotActive")),
-					     QString::fromUtf8(obs_module_text("MainOutputNotActive")));
+			reportFailure("MainOutputNotActive");
 			return false;
 		}
 
@@ -1062,9 +1203,29 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 	obs_output_set_video_encoder(output, venc);
 	obs_output_set_audio_encoder(output, aenc, 0);
 
-	obs_output_start(output);
-
 	outputs.push_back({obs_data_get_string(settings, "name"), output, streamButton});
+
+	if (!obs_output_start(output)) {
+		// A start that fails here never raises "stop", so nothing else will
+		// clean up after it. Left in the list the name would look permanently
+		// busy, and an output configured to start with the main output would
+		// never be started again.
+		auto last_error = obs_output_get_last_error(output);
+		blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s'%s%s", name, last_error ? ": " : "",
+		     last_error ? last_error : "");
+		for (auto it = outputs.begin(); it != outputs.end(); it++) {
+			if (std::get<obs_output_t *>(*it) != output)
+				continue;
+			outputs.erase(it);
+			break;
+		}
+		signal_handler_disconnect(signal, "start", stream_output_start, this);
+		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
+		auto failed_service = obs_output_get_service(output);
+		obs_output_release(output);
+		obs_service_release(failed_service);
+		return false;
+	}
 
 	return true;
 }
@@ -1072,46 +1233,71 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
-	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-		if (std::get<obs_output_t *>(*it) != output)
-			continue;
-		auto button = std::get<QPushButton *>(*it);
-		if (!button->isChecked()) {
-			QMetaObject::invokeMethod(
-				button,
-				[button, md] {
+	auto output = obs_output_get_ref((obs_output_t *)calldata_ptr(calldata, "output"));
+	if (!output)
+		return;
+	// Raised on the output's own thread. Everything below belongs to the UI
+	// thread -- the outputs list, the buttons, pending_auto_stop -- so hand the
+	// whole job over rather than doing any of it here. The reference keeps the
+	// output alive for the trip.
+	QMetaObject::invokeMethod(
+		md,
+		[md, output] {
+			for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+				if (std::get<obs_output_t *>(*it) != output)
+					continue;
+				auto button = std::get<QPushButton *>(*it);
+				if (button && !button->isChecked()) {
 					button->setChecked(true);
 					md->outputButtonStyle(button);
-				},
-				Qt::QueuedConnection);
-		}
-	}
+				}
+				// If the main output went down while this one was still
+				// connecting, the stop asked for then did nothing, because
+				// obs_output_stop() ignores an output that is neither active
+				// nor reconnecting. It has started now, so it can be stopped.
+				auto name = std::get<std::string>(*it);
+				if (md->pending_auto_stop.erase(name)) {
+					blog(LOG_INFO,
+					     "[Aitum Multistream] stopping '%s' now it has connected, main already stopped",
+					     name.c_str());
+					StopOutput(output);
+				}
+				break;
+			}
+			obs_output_release(output);
+		},
+		Qt::QueuedConnection);
 }
 
 void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
-	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-		if (std::get<obs_output_t *>(*it) != output)
-			continue;
-		auto button = std::get<QPushButton *>(*it);
-		if (button->isChecked()) {
-			QMetaObject::invokeMethod(
-				button,
-				[button, md] {
+	auto output = obs_output_get_ref((obs_output_t *)calldata_ptr(calldata, "output"));
+	if (!output)
+		return;
+	// Same as above: raised on the output's thread, all of the work is the UI
+	// thread's. Doing the release and the erase here is what used to collide
+	// with StartOutput tearing the same entry down.
+	QMetaObject::invokeMethod(
+		md,
+		[md, output] {
+			for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+				if (std::get<obs_output_t *>(*it) != output)
+					continue;
+				auto button = std::get<QPushButton *>(*it);
+				if (button && button->isChecked()) {
 					button->setChecked(false);
 					md->outputButtonStyle(button);
-				},
-				Qt::QueuedConnection);
-		}
-		if (!md->exiting)
-			QMetaObject::invokeMethod(button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
-		md->outputs.erase(it);
-		break;
-	}
-	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
+				}
+				md->pending_auto_stop.erase(std::get<std::string>(*it));
+				if (!md->exiting)
+					obs_output_release(output);
+				md->outputs.erase(it);
+				break;
+			}
+			obs_output_release(output);
+		},
+		Qt::QueuedConnection);
 }
 
 void MultistreamDock::ApiInfo(QString info)

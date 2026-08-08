@@ -924,6 +924,35 @@ void OBSBasicSettings::AddServer(QFormLayout *outputsLayout, obs_data_t *setting
 
 	advancedGroupLayout->addWidget(advancedButton);
 
+	// Not inside advancedTabWidget: that is only shown when "advanced" is ticked,
+	// and "advanced" means this output gets its own encoder. Main canvas only --
+	// vertical outputs are driven by the Aitum Vertical procs, not StartOutput.
+	if (main) {
+		auto startWithMain = new QCheckBox(QString::fromUtf8(obs_module_text("StartWithMainOutput")));
+		startWithMain->setChecked(obs_data_get_bool(settings, "start_w_main"));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+		connect(startWithMain, &QCheckBox::checkStateChanged, [startWithMain, settings] {
+#else
+		connect(startWithMain, &QCheckBox::stateChanged, [startWithMain, settings] {
+#endif
+			obs_data_set_bool(settings, "start_w_main", startWithMain->isChecked());
+		});
+		startWithMain->setToolTip(QString::fromUtf8(obs_module_text("StartWithMainOutputInfo")));
+		advancedGroupLayout->addWidget(startWithMain);
+
+		auto stopWithMain = new QCheckBox(QString::fromUtf8(obs_module_text("StopWithMainOutput")));
+		stopWithMain->setChecked(obs_data_get_bool(settings, "stop_w_main"));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+		connect(stopWithMain, &QCheckBox::checkStateChanged, [stopWithMain, settings] {
+#else
+		connect(stopWithMain, &QCheckBox::stateChanged, [stopWithMain, settings] {
+#endif
+			obs_data_set_bool(settings, "stop_w_main", stopWithMain->isChecked());
+		});
+		stopWithMain->setToolTip(QString::fromUtf8(obs_module_text("StopWithMainOutputInfo")));
+		advancedGroupLayout->addWidget(stopWithMain);
+	}
+
 	connect(streaming_title, &QToolButton::toggled, [advancedGroup, streaming_title, settings](bool checked) {
 		advancedGroup->setVisible(checked);
 		obs_data_set_bool(settings, "expanded", checked);

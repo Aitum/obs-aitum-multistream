@@ -8,6 +8,7 @@
 #include <QString>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <set>
 
 class OBSBasicSettings;
 
@@ -46,7 +47,23 @@ private:
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
-	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
+	// `automatic` marks a start the user did not ask for directly -- one
+	// triggered by the main output starting. Those never open a dialog: there
+	// may be nobody at the machine, and one modal per output would wedge OBS.
+	// A true return means the start was accepted, NOT that the output is live;
+	// only the output's own "start" signal means that.
+	bool StartOutput(obs_data_t *settings, QPushButton *streamButton, bool automatic = false);
+
+	// Follow-the-main-output automation. Both run on the Qt UI thread from
+	// frontend_event.
+	void StartOutputsWithMain();
+	void StopOutputsWithMain();
+
+	// Outputs asked to stop while they were still connecting. obs_output_stop()
+	// does nothing for an output that is neither active nor reconnecting, so the
+	// request is remembered by name here and re-issued once the output reports
+	// that it started. Touched on the UI thread only.
+	std::set<std::string> pending_auto_stop;
 
 	void outputButtonStyle(QPushButton *button);
 

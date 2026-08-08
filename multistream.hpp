@@ -8,6 +8,7 @@
 #include <QString>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <mutex>
 
 class OBSBasicSettings;
 
@@ -36,6 +37,14 @@ private:
 	video_t *mainVideo = nullptr;
 	std::vector<video_t *> oldVideo;
 
+	// Guards `outputs`. It is read on the UI thread (the refresh timer, the
+	// dock buttons, the websocket vendor) and written from an output's own
+	// signal thread by stream_output_stop(), which erases entries.
+	//
+	// Recursive because obs_output_force_stop() raises "stop" synchronously on
+	// the calling thread, so a caller that already holds the lock re-enters it
+	// through stream_output_stop().
+	std::recursive_mutex outputs_mutex;
 	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
 	obs_data_array_t *vertical_outputs = nullptr;
 	bool exiting = false;
@@ -46,7 +55,26 @@ private:
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
-	bool StartOutput(obs_data_t *settings, QPushButton *streamButton, bool interactive = true);
+	// Outcome of building and starting one output.
+	//
+	// The two error fields serve different audiences and deliberately do not
+	// share a vocabulary: `error` is a stable snake_case identifier that goes
+	// out over the websocket API and should not change once clients depend on
+	// it, while `locale_key` is the obs_module_text() key for the dialog the
+	// dock shows. Either may be nullptr when there is nothing useful to say.
+	struct StartOutputResult {
+		bool ok = false;
+		const char *error = nullptr;
+		const char *locale_key = nullptr;
+	};
+
+	// Builds and starts an output. Contains no UI, so the websocket vendor can
+	// call it without a dialog appearing on an unattended machine.
+	StartOutputResult StartOutputInternal(obs_data_t *settings, QPushButton *streamButton);
+
+	// Dock-button entry point: confirmation dialog, StartOutputInternal, then a
+	// warning box if it failed.
+	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
 
 	void outputButtonStyle(QPushButton *button);
 
@@ -70,14 +98,14 @@ public:
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
 
-	// Remote control via the obs-websocket vendor ("aitum-multistream").
-	// The Remote* methods run on the UI thread (invoked queued from the
-	// websocket thread) and never show dialogs; the Fill* methods run on the
-	// UI thread via a blocking invoke and only read state.
-	Q_INVOKABLE void RemoteStartOutput(const QString &name);
-	Q_INVOKABLE void RemoteStopOutput(const QString &name);
-	Q_INVOKABLE void RemoteStartVerticalOutput(const QString &name);
-	Q_INVOKABLE void RemoteStopVerticalOutput(const QString &name);
+	// Remote control via the obs-websocket vendor ("aitum-multistream"). All
+	// of these run on the UI thread (see run_on_dock in multistream.cpp) and
+	// never show dialogs. The Remote* methods return nullptr on success, or an
+	// error string for the websocket response; the Fill* methods only read.
+	const char *RemoteStartOutput(const QString &name);
+	const char *RemoteStopOutput(const QString &name);
+	const char *RemoteStartVerticalOutput(const QString &name);
+	const char *RemoteStopVerticalOutput(const QString &name);
 	void FillStatus(obs_data_t *response_data);
 	void FillOutputs(obs_data_t *response_data);
 };

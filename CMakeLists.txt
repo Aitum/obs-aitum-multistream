@@ -66,8 +66,28 @@ target_sources(${PROJECT_NAME} PRIVATE
 	output-dialog.hpp
 	stream-key-input.hpp
     multistream.hpp
-	obs-websocket-api.h
 	file-updater.h)
+
+# obs-websocket ships a header describing its vendor API, and OBS installs it
+# along with a CMake package for it. Prefer that copy so this plugin follows
+# upstream automatically; only fall back to the vendored snapshot in
+# deps/obs-websocket-api when the package is not available (older OBS builds,
+# and source trees that do not install it).
+find_package(obs-websocket-api QUIET)
+# Two different target names are in play: an in-tree obs-studio build defines the
+# alias OBS::websocket-api, while the installed CMake package exports the target
+# under its own name as OBS::obs-websocket-api. Accept either.
+if(TARGET OBS::websocket-api)
+	target_link_libraries(${PROJECT_NAME} PRIVATE OBS::websocket-api)
+	message(STATUS "Aitum Multistream: using the in-tree obs-websocket-api target")
+elseif(TARGET OBS::obs-websocket-api)
+	target_link_libraries(${PROJECT_NAME} PRIVATE OBS::obs-websocket-api)
+	message(STATUS "Aitum Multistream: using the obs-websocket-api package provided by OBS")
+else()
+	target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/deps/obs-websocket-api")
+	target_sources(${PROJECT_NAME} PRIVATE deps/obs-websocket-api/obs-websocket-api.h)
+	message(STATUS "Aitum Multistream: obs-websocket-api package not found, using the vendored header")
+endif()
 
 if(BUILD_OUT_OF_TREE)
 	set_target_properties_plugin(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

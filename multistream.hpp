@@ -104,6 +104,7 @@ public:
 	// error string for the websocket response; the Fill* methods only read.
 	const char *RemoteStartOutput(const QString &name);
 	const char *RemoteStopOutput(const QString &name);
+	bool HasVerticalOutput(const QString &name);
 	const char *RemoteStartVerticalOutput(const QString &name);
 	const char *RemoteStopVerticalOutput(const QString &name);
 	void FillStatus(obs_data_t *response_data);

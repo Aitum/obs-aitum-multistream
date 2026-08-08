@@ -836,6 +836,18 @@ void MultistreamDock::LoadSettings()
 {
 
 	auto outputs2 = obs_data_get_array(current_config, "outputs");
+	// Every main-canvas row is about to be deleted, and each entry in `outputs`
+	// holds a raw pointer to the toggle button inside one of those rows. Forget
+	// those pointers first, under the lock: LoadOutput() re-points the entries
+	// whose output still exists in the new config, but an output that was
+	// renamed or removed never gets re-pointed and would keep a pointer to a
+	// freed button -- which its own signal thread dereferences the next time it
+	// starts or stops.
+	{
+		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
+		for (auto it = outputs.begin(); it != outputs.end(); it++)
+			std::get<QPushButton *>(*it) = nullptr;
+	}
 	int idx = 1;
 	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
@@ -1359,7 +1371,7 @@ void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 		if (std::get<obs_output_t *>(*it) != output)
 			continue;
 		auto button = std::get<QPushButton *>(*it);
-		if (!button->isChecked()) {
+		if (button && !button->isChecked()) {
 			QMetaObject::invokeMethod(
 				button,
 				[button, md] {
@@ -1380,7 +1392,7 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 		if (std::get<obs_output_t *>(*it) != output)
 			continue;
 		auto button = std::get<QPushButton *>(*it);
-		if (button->isChecked()) {
+		if (button && button->isChecked()) {
 			QMetaObject::invokeMethod(
 				button,
 				[button, md] {
@@ -1390,7 +1402,7 @@ void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 				Qt::QueuedConnection);
 		}
 		if (!md->exiting)
-			QMetaObject::invokeMethod(button, [output] { obs_output_release(output); }, Qt::QueuedConnection);
+			QMetaObject::invokeMethod(md, [output] { obs_output_release(output); }, Qt::QueuedConnection);
 		md->outputs.erase(it);
 		break;
 	}

@@ -155,6 +155,24 @@ template<typename Fn> static bool run_on_dock(Fn fn)
 
 } // namespace
 
+// Tells connected websocket clients that an output changed state, so they do not
+// have to poll get_outputs to notice -- including when the change came from
+// somebody clicking the button in the dock rather than from a request.
+//
+// Safe to call with no obs-websocket installed (websocket_vendor stays null) and
+// from any thread; obs-websocket serialises the broadcast itself. Call it with
+// no plugin locks held, since it reaches into obs-websocket's own machinery.
+static void vendor_emit_output_state(const char *name, bool active)
+{
+	if (!websocket_vendor || !name)
+		return;
+	auto event = obs_data_create();
+	obs_data_set_string(event, "name", name);
+	obs_data_set_bool(event, "active", active);
+	obs_websocket_vendor_emit_event(websocket_vendor, "output_state_changed", event);
+	obs_data_release(event);
+}
+
 static void vendor_request_status(obs_data_t *request_data, obs_data_t *response_data, void *)
 {
 	UNUSED_PARAMETER(request_data);
@@ -1366,47 +1384,59 @@ void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
 	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
-	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-		if (std::get<obs_output_t *>(*it) != output)
-			continue;
-		auto button = std::get<QPushButton *>(*it);
-		if (button && !button->isChecked()) {
-			QMetaObject::invokeMethod(
-				button,
-				[button, md] {
-					button->setChecked(true);
-					md->outputButtonStyle(button);
-				},
-				Qt::QueuedConnection);
+	std::string name;
+	{
+		std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
+		for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+			if (std::get<obs_output_t *>(*it) != output)
+				continue;
+			name = std::get<std::string>(*it);
+			auto button = std::get<QPushButton *>(*it);
+			if (button && !button->isChecked()) {
+				QMetaObject::invokeMethod(
+					button,
+					[button, md] {
+						button->setChecked(true);
+						md->outputButtonStyle(button);
+					},
+					Qt::QueuedConnection);
+			}
 		}
 	}
+	if (!name.empty())
+		vendor_emit_output_state(name.c_str(), true);
 }
 
 void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
 	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
-	for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-		if (std::get<obs_output_t *>(*it) != output)
-			continue;
-		auto button = std::get<QPushButton *>(*it);
-		if (button && button->isChecked()) {
-			QMetaObject::invokeMethod(
-				button,
-				[button, md] {
-					button->setChecked(false);
-					md->outputButtonStyle(button);
-				},
-				Qt::QueuedConnection);
+	std::string name;
+	{
+		std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
+		for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+			if (std::get<obs_output_t *>(*it) != output)
+				continue;
+			name = std::get<std::string>(*it);
+			auto button = std::get<QPushButton *>(*it);
+			if (button && button->isChecked()) {
+				QMetaObject::invokeMethod(
+					button,
+					[button, md] {
+						button->setChecked(false);
+						md->outputButtonStyle(button);
+					},
+					Qt::QueuedConnection);
+			}
+			if (!md->exiting)
+				QMetaObject::invokeMethod(md, [output] { obs_output_release(output); }, Qt::QueuedConnection);
+			md->outputs.erase(it);
+			break;
 		}
-		if (!md->exiting)
-			QMetaObject::invokeMethod(md, [output] { obs_output_release(output); }, Qt::QueuedConnection);
-		md->outputs.erase(it);
-		break;
 	}
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
+	if (!name.empty())
+		vendor_emit_output_state(name.c_str(), false);
 }
 
 void MultistreamDock::ApiInfo(QString info)
@@ -1614,16 +1644,38 @@ const char *MultistreamDock::RemoteStopOutput(const QString &name)
 	return "output_not_running";
 }
 
+// Is there a Vertical Canvas output by this name? The start/stop procs cannot
+// answer that -- Vertical Canvas declares them void -- so check the output list
+// it hands us instead, which is the same list get_outputs reports from.
+bool MultistreamDock::HasVerticalOutput(const QString &name)
+{
+	if (!vertical_outputs)
+		return false;
+	auto count = obs_data_array_count(vertical_outputs);
+	for (size_t i = 0; i < count; i++) {
+		auto item = obs_data_array_item(vertical_outputs, i);
+		if (!item)
+			continue;
+		bool match = name == QString::fromUtf8(obs_data_get_string(item, "name"));
+		obs_data_release(item);
+		if (match)
+			return true;
+	}
+	return false;
+}
+
 const char *MultistreamDock::RemoteStartVerticalOutput(const QString &name)
 {
+	if (!HasVerticalOutput(name))
+		return "output_not_found";
 	auto ph = obs_get_proc_handler();
 	struct calldata cd;
 	calldata_init(&cd);
 	calldata_set_string(&cd, "name", name.toUtf8().constData());
-	// Note the limitation: aitum_vertical_start_stream_output is declared void
-	// by Vertical Canvas, so a true return only means the proc exists -- it says
-	// nothing about whether an output by this name was found. Success here is
-	// "the request was delivered", unlike the main-canvas outputs above.
+	// The name is checked above, but the outcome still cannot be: Vertical
+	// Canvas declares this proc void, so a true return only means the proc
+	// exists. Success here is "a known output was asked to start", not "it
+	// started" -- weaker than the main-canvas outputs above.
 	bool called = proc_handler_call(ph, "aitum_vertical_start_stream_output", &cd);
 	calldata_free(&cd);
 	if (!called) {
@@ -1646,6 +1698,8 @@ const char *MultistreamDock::RemoteStartVerticalOutput(const QString &name)
 
 const char *MultistreamDock::RemoteStopVerticalOutput(const QString &name)
 {
+	if (!HasVerticalOutput(name))
+		return "output_not_found";
 	auto ph = obs_get_proc_handler();
 	struct calldata cd;
 	calldata_init(&cd);

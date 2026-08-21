@@ -4,6 +4,7 @@
 #include "version.h"
 #include <obs-frontend-api.h>
 #include <obs-websocket-api.h>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QGroupBox>
 #include <QLabel>
@@ -12,7 +13,6 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QVBoxLayout>
-#include <QThread>
 #include <QUrl>
 #include <util/config-file.h>
 #include <util/platform.h>
@@ -31,11 +31,6 @@ OBS_MODULE_USE_DEFAULT_LOCALE("aitum-multistream", "en-US")
 
 static MultistreamDock *multistream_dock = nullptr;
 
-// Guards `multistream_dock` itself. The dock is created and destroyed on the
-// UI thread, but the obs-websocket vendor callbacks below read the pointer from
-// a websocket worker thread, so every read and write of it takes this lock.
-static std::mutex dock_mutex;
-
 static obs_websocket_vendor websocket_vendor = nullptr;
 
 update_info_t *version_update_info = nullptr;
@@ -46,14 +41,21 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 	if (!file || !file->buffer.num)
 		return true;
 
-	// Runs on the updater's thread, so it goes through dock_mutex like every
-	// other cross-thread read of this pointer.
-	{
-		std::lock_guard<std::mutex> lock(dock_mutex);
-		if (multistream_dock)
-			QMetaObject::invokeMethod(multistream_dock, "ApiInfo",
-						  Q_ARG(QString, QString::fromUtf8((const char *)file->buffer.array)));
-	}
+	// Runs on the updater's own thread, which may not touch `multistream_dock`.
+	// The JSON is copied here because the download buffer does not outlive this
+	// callback, and the copy is carried to the UI thread, where reading the
+	// global is safe.
+	auto info = QString::fromUtf8((const char *)file->buffer.array);
+	QMetaObject::invokeMethod(
+		QCoreApplication::instance(),
+		[info] {
+			// Already on the UI thread, so this dispatches straight through;
+			// ApiInfo is a private slot, hence the meta-object call.
+			if (multistream_dock)
+				QMetaObject::invokeMethod(multistream_dock, "ApiInfo", Qt::DirectConnection,
+							  Q_ARG(QString, info));
+		},
+		Qt::QueuedConnection);
 
 	if (version_update_info) {
 		update_info_destroy(version_update_info);
@@ -84,34 +86,49 @@ bool obs_module_load(void)
 
 // ---- obs-websocket vendor ("aitum-multistream") -------------------------
 // obs-websocket calls these back on one of its worker threads, but everything
-// they touch (the dock, the outputs vector, Qt widgets) belongs to the UI
-// thread. So each request hops to the UI thread, waits for the answer, and
-// reports the real result -- a client is told whether its start actually
-// happened, not merely that the message was received.
+// they touch -- the dock, the outputs vector, Qt widgets -- lives on the UI
+// thread and is deliberately unguarded, because the UI thread is the only place
+// any of it is ever touched. So each request hops to the UI thread, waits for
+// the answer, and reports the real result: a client is told whether its start
+// actually happened, not merely that the message was received.
+//
+// The wait is not optional. A vendor request callback is handed an obs_data_t
+// that obs-websocket reads the moment the callback returns and then releases;
+// there is no way to answer later. Replying before the work runs would mean
+// always replying "success", which is most of what these requests are for.
 //
 // The hop is a queued call plus an explicit timed wait rather than
-// Qt::BlockingQueuedConnection, because that connection type has two failure
-// modes here:
-//   * it never returns if the UI thread has stopped running its event loop,
-//     which is exactly what happens while OBS is shutting down, and
-//   * it deadlocks immediately if the caller is itself on the UI thread, which
-//     another plugin calling obs_websocket_call_request() would cause.
-// If the UI thread does not answer in time the call is marked cancelled, so
-// the late-running lambda knows not to write into a response object that
-// obs-websocket has since freed.
+// Qt::BlockingQueuedConnection, which has no timeout: once the UI thread stops
+// pumping events -- which is exactly what happens while OBS shuts down -- a
+// websocket worker would block there forever. If the UI thread does not answer
+// in time the call is marked cancelled instead, so the late-running functor
+// knows not to write into a response object obs-websocket has since freed.
 //
 // The timeout bounds how long we wait for the UI thread to *pick the call up*,
-// not how long the call itself takes: once the lambda is running it holds the
-// same mutex the waiter needs, so a slow start_output still blocks the
-// websocket thread for its full duration. That is the intended behaviour --
-// the timeout exists to escape a UI thread that will never answer at all.
+// not how long the call itself takes: once the functor is running it holds the
+// same DockCall the waiter needs, so a slow start_output still blocks the
+// websocket thread for its full duration. That is intended -- the timeout only
+// exists to escape a UI thread that will never answer at all.
+//
+// One consequence worth naming: a caller that is *itself* on the UI thread --
+// no request path today does this, only another plugin calling
+// obs_websocket_call_request() from a slot could -- cannot be dispatched by a
+// thread that is busy waiting, so it stalls for the timeout and is answered
+// "dock_unavailable". Bounded, and never a hang or a corrupted response.
 
 namespace {
 
 struct DockCall {
 	std::mutex mutex;
 	std::condition_variable cv;
-	bool done = false;
+	// Set once the UI thread is finished with the call, whether or not it found
+	// a dock to run against. `ok` distinguishes the two, so a request arriving
+	// after the dock is gone is answered immediately rather than after the
+	// timeout.
+	bool finished = false;
+	bool ok = false;
+	// Set by the waiter when it gives up, so a functor that runs late knows not
+	// to touch anything the caller has since let go of.
 	bool cancelled = false;
 };
 
@@ -119,38 +136,36 @@ static const std::chrono::milliseconds dock_call_timeout(2000);
 
 // Runs fn(dock) on the UI thread and waits for it. Returns false if the dock is
 // gone or the UI thread did not get to it in time.
+//
+// The functor is posted to qApp rather than to the dock, and reads
+// `multistream_dock` itself once it is running. That keeps the whole lifetime
+// question on one thread: this thread never holds a dock pointer, so it cannot
+// be holding a stale one while ~MultistreamDock runs. qApp is the right context
+// object because it outlives the dock and lives on the UI thread.
 template<typename Fn> static bool run_on_dock(Fn fn)
 {
 	auto call = std::make_shared<DockCall>();
-	{
-		std::lock_guard<std::mutex> lock(dock_mutex);
-		if (!multistream_dock)
-			return false;
-		auto dock = multistream_dock;
-		if (QThread::currentThread() == dock->thread()) {
-			// Already on the UI thread; queueing and waiting would
-			// deadlock against ourselves.
-			fn(dock);
-			return true;
-		}
-		QMetaObject::invokeMethod(
-			dock,
-			[call, fn, dock] {
-				std::lock_guard<std::mutex> lock(call->mutex);
-				if (call->cancelled)
-					return;
-				fn(dock);
-				call->done = true;
-				call->cv.notify_all();
-			},
-			Qt::QueuedConnection);
-	}
+	QMetaObject::invokeMethod(
+		QCoreApplication::instance(),
+		[call, fn] {
+			std::lock_guard<std::mutex> lock(call->mutex);
+			if (call->cancelled)
+				return;
+			if (multistream_dock) {
+				fn(multistream_dock);
+				call->ok = true;
+			}
+			call->finished = true;
+			call->cv.notify_all();
+		},
+		Qt::QueuedConnection);
+
 	std::unique_lock<std::mutex> lock(call->mutex);
-	if (!call->cv.wait_for(lock, dock_call_timeout, [&call] { return call->done; })) {
+	if (!call->cv.wait_for(lock, dock_call_timeout, [&call] { return call->finished; })) {
 		call->cancelled = true;
 		return false;
 	}
-	return true;
+	return call->ok;
 }
 
 } // namespace
@@ -159,9 +174,9 @@ template<typename Fn> static bool run_on_dock(Fn fn)
 // have to poll get_outputs to notice -- including when the change came from
 // somebody clicking the button in the dock rather than from a request.
 //
-// Safe to call with no obs-websocket installed (websocket_vendor stays null) and
-// from any thread; obs-websocket serialises the broadcast itself. Call it with
-// no plugin locks held, since it reaches into obs-websocket's own machinery.
+// Safe to call with no obs-websocket installed -- websocket_vendor stays null.
+// Every caller is on the UI thread; obs-websocket serialises the broadcast
+// itself, so the event goes out from here without further ceremony.
 static void vendor_emit_output_state(const char *name, bool active)
 {
 	if (!websocket_vendor || !name)
@@ -283,9 +298,11 @@ void obs_module_unload()
 		update_info_destroy(version_update_info);
 		version_update_info = nullptr;
 	}
-	// ~MultistreamDock clears the global under dock_mutex before it tears
-	// anything down, so a vendor request racing this fails cleanly rather
-	// than reaching a half-destroyed dock.
+	// ~MultistreamDock clears the global before it tears anything down, and
+	// both that and every read of it happen on this thread, so a vendor request
+	// racing this fails cleanly rather than reaching a half-destroyed dock. It
+	// may already have run -- Qt owns the dock once it is docked -- in which
+	// case the global is null and this deletes nothing.
 	delete multistream_dock;
 }
 
@@ -644,7 +661,6 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 		if (obs_get_video() != mainVideo) {
 			oldVideo.push_back(mainVideo);
 			mainVideo = obs_get_video();
-			std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
 			for (auto it = outputs.begin(); it != outputs.end(); it++) {
 				auto venc = obs_output_get_video_encoder(std::get<obs_output_t *>(*it));
 				if (venc && !obs_encoder_active(venc))
@@ -682,7 +698,6 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 			std::string name = streamGroup->objectName().toUtf8().constData();
 			if (name.empty())
 				continue;
-			std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
 			for (auto it = outputs.begin(); it != outputs.end(); it++) {
 				if (std::get<std::string>(*it) != name)
 					continue;
@@ -737,26 +752,25 @@ MultistreamDock::MultistreamDock(QWidget *parent) : QFrame(parent)
 
 MultistreamDock::~MultistreamDock()
 {
-	// Do this first, not last: it stops the obs-websocket vendor callbacks
-	// from picking up a pointer to a dock that is already being torn down.
-	{
-		std::lock_guard<std::mutex> lock(dock_mutex);
-		multistream_dock = nullptr;
-	}
+	// Do this first, not last. The dock is owned by Qt once it is handed to
+	// obs_frontend_add_dock_by_id(), so on the main-window teardown path Qt
+	// destroys it before obs_module_unload() runs; clearing the global here is
+	// what turns the unconditional delete there into a delete of nullptr. It is
+	// also what makes a vendor request arriving now answer "dock_unavailable"
+	// instead of reaching a half-destroyed dock -- see run_on_dock(), which
+	// reads this global on the UI thread, the same thread as this destructor.
+	multistream_dock = nullptr;
 	videoCheckTimer.stop();
-	// Take the whole vector under the lock and tear the outputs down outside
-	// it: obs_output_force_stop() can block on the graphics thread, which may
-	// itself be running a queued stop task that wants this same lock.
-	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs_to_clean;
-	{
-		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-		outputs_to_clean.swap(outputs);
-	}
-	for (auto it = outputs_to_clean.begin(); it != outputs_to_clean.end(); it++) {
-		auto old = std::get<obs_output_t *>(*it);
-		signal_handler_t *signal = obs_output_get_signal_handler(old);
+	// Disconnect every handler before stopping anything. obs_output_force_stop()
+	// raises "stop" synchronously, and stream_output_stop() would post a functor
+	// to a dock that is being destroyed right now.
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		signal_handler_t *signal = obs_output_get_signal_handler(std::get<obs_output_t *>(*it));
 		signal_handler_disconnect(signal, "start", stream_output_start, this);
 		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
+	}
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		auto old = std::get<obs_output_t *>(*it);
 		auto service = obs_output_get_service(old);
 		if (obs_output_active(old)) {
 			obs_output_force_stop(old);
@@ -765,6 +779,7 @@ MultistreamDock::~MultistreamDock()
 			obs_output_release(old);
 		obs_service_release(service);
 	}
+	outputs.clear();
 	obs_data_array_release(vertical_outputs);
 	obs_data_release(current_config);
 	obs_frontend_remove_event_callback(frontend_event, this);
@@ -856,16 +871,12 @@ void MultistreamDock::LoadSettings()
 	auto outputs2 = obs_data_get_array(current_config, "outputs");
 	// Every main-canvas row is about to be deleted, and each entry in `outputs`
 	// holds a raw pointer to the toggle button inside one of those rows. Forget
-	// those pointers first, under the lock: LoadOutput() re-points the entries
-	// whose output still exists in the new config, but an output that was
-	// renamed or removed never gets re-pointed and would keep a pointer to a
-	// freed button -- which its own signal thread dereferences the next time it
-	// starts or stops.
-	{
-		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-		for (auto it = outputs.begin(); it != outputs.end(); it++)
-			std::get<QPushButton *>(*it) = nullptr;
-	}
+	// those pointers first: LoadOutput() re-points the entries whose output
+	// still exists in the new config, but an output that was renamed or removed
+	// never gets re-pointed and would keep a pointer to a freed button, which
+	// the next start or stop of that output would then use.
+	for (auto it = outputs.begin(); it != outputs.end(); it++)
+		std::get<QPushButton *>(*it) = nullptr;
 	int idx = 1;
 	while (auto item = mainCanvasOutputLayout->itemAt(idx)) {
 		auto streamGroup = item->widget();
@@ -905,7 +916,6 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 		}
 	}
 	auto streamButton = new QPushButton;
-	std::unique_lock<std::recursive_mutex> outputs_lock(outputs_mutex);
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		if (std::get<std::string>(*it) != nameChars)
 			continue;
@@ -921,7 +931,6 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 		}
 		std::get<QPushButton *>(*it) = streamButton;
 	}
-	outputs_lock.unlock();
 	auto streamGroup = new QGroupBox;
 	streamGroup->setStyleSheet(outputGroupStyle);
 	streamGroup->setObjectName(name);
@@ -1011,7 +1020,6 @@ void MultistreamDock::LoadOutput(obs_data_t *output_data, bool vertical)
 					blog(LOG_INFO, "[Aitum Multistream] stop stream clicked '%s'",
 					     obs_data_get_string(output_data, "name"));
 					const char *name2 = obs_data_get_string(output_data, "name");
-					std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
 					for (auto it = outputs.begin(); it != outputs.end(); it++) {
 						if (std::get<std::string>(*it) != name2)
 							continue;
@@ -1151,28 +1159,32 @@ MultistreamDock::StartOutputResult MultistreamDock::StartOutputInternal(obs_data
 	if (!settings)
 		return {false, "no_settings", nullptr};
 
-	// Remove any previous output for this name first. The entry comes out of
-	// the vector under the lock, but the actual teardown happens outside it --
-	// obs_output_force_stop() can block on the graphics thread, and a queued
-	// stop task there may be waiting on this very lock.
+	// Remove any previous output for this name first.
 	const char *name = obs_data_get_string(settings, "name");
 	obs_output_t *previous = nullptr;
-	{
-		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-		for (auto it = outputs.begin(); it != outputs.end(); it++) {
-			if (std::get<std::string>(*it) != name)
-				continue;
-			previous = std::get<obs_output_t *>(*it);
-			outputs.erase(it);
-			break;
-		}
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) != name)
+			continue;
+		previous = std::get<obs_output_t *>(*it);
+		outputs.erase(it);
+		break;
 	}
 	if (previous) {
 		auto service = obs_output_get_service(previous);
-		if (obs_output_active(previous))
+		bool was_active = obs_output_active(previous);
+		// Disconnect before stopping. obs_output_force_stop() raises "stop"
+		// synchronously, and the entry it would look for has just been erased,
+		// so the handler could no longer emit the state event for it. Doing it
+		// this way makes that explicit rather than silently dropping the event.
+		signal_handler_t *signal = obs_output_get_signal_handler(previous);
+		signal_handler_disconnect(signal, "start", stream_output_start, this);
+		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
+		if (was_active)
 			obs_output_force_stop(previous);
 		obs_output_release(previous);
 		obs_service_release(service);
+		if (was_active)
+			vendor_emit_output_state(name, false);
 	}
 	obs_encoder_t *venc = nullptr;
 	obs_encoder_t *aenc = nullptr;
@@ -1343,12 +1355,8 @@ MultistreamDock::StartOutputResult MultistreamDock::StartOutputInternal(obs_data
 
 	// Record the output before starting it, so that the "start"/"stop" signal
 	// handlers always find it -- they can fire before obs_output_start()
-	// returns. The lock is released again first: obs_output_start() reaches
-	// into encoder setup, which can wait on the graphics thread.
-	{
-		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-		outputs.push_back({obs_data_get_string(settings, "name"), output, streamButton});
-	}
+	// returns.
+	outputs.push_back({obs_data_get_string(settings, "name"), output, streamButton});
 
 	if (!obs_output_start(output)) {
 		// Nothing will ever emit "stop" for an output that never started, so
@@ -1358,14 +1366,11 @@ MultistreamDock::StartOutputResult MultistreamDock::StartOutputInternal(obs_data
 		auto last_error = obs_output_get_last_error(output);
 		blog(LOG_WARNING, "[Aitum Multistream] failed to start stream '%s'%s%s", name, last_error ? ": " : "",
 		     last_error ? last_error : "");
-		{
-			std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-			for (auto it = outputs.begin(); it != outputs.end(); it++) {
-				if (std::get<obs_output_t *>(*it) != output)
-					continue;
-				outputs.erase(it);
-				break;
-			}
+		for (auto it = outputs.begin(); it != outputs.end(); it++) {
+			if (std::get<obs_output_t *>(*it) != output)
+				continue;
+			outputs.erase(it);
+			break;
 		}
 		signal_handler_disconnect(signal, "start", stream_output_start, this);
 		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
@@ -1380,63 +1385,97 @@ MultistreamDock::StartOutputResult MultistreamDock::StartOutputInternal(obs_data
 	return {true, nullptr, nullptr};
 }
 
+// The "start" and "stop" signals are raised by libobs on the output's own
+// thread, never on the UI thread. `outputs` and the dock's widgets belong to the
+// UI thread, so these handlers touch neither: they take a reference to the
+// output to keep it alive for the trip and hand a functor to the UI thread,
+// where all the real work happens without a lock.
+//
+// The reference is held in a shared_ptr with obs_output_release as its deleter
+// rather than released at the end of the functor body, because the body is not
+// guaranteed to run. ~QObject drops metacalls still queued for the dock, and at
+// OBS exit the UI thread may stop pumping events altogether. A deleter fires in
+// all three cases -- ran, discarded, never pumped -- so the reference cannot
+// leak. It is a separate reference from the one `outputs` holds; releasing the
+// entry's reference is the job of whoever erases the entry.
+using OutputTripRef = std::shared_ptr<obs_output_t>;
+
+static OutputTripRef output_trip_ref(calldata_t *calldata)
+{
+	// calldata is only valid for the duration of the signal, so read it here.
+	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
+	// Null once the output has begun being destroyed, in which case there is
+	// nothing left worth reporting.
+	return OutputTripRef(output ? obs_output_get_ref(output) : nullptr, obs_output_release);
+}
+
 void MultistreamDock::stream_output_start(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
-	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	std::string name;
-	{
-		std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
-		for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-			if (std::get<obs_output_t *>(*it) != output)
-				continue;
-			name = std::get<std::string>(*it);
-			auto button = std::get<QPushButton *>(*it);
-			if (button && !button->isChecked()) {
-				QMetaObject::invokeMethod(
-					button,
-					[button, md] {
-						button->setChecked(true);
-						md->outputButtonStyle(button);
-					},
-					Qt::QueuedConnection);
+	auto trip = output_trip_ref(calldata);
+	if (!trip)
+		return;
+	QMetaObject::invokeMethod(
+		md,
+		[md, trip] {
+			// UI thread from here on.
+			auto output = trip.get();
+			for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+				if (std::get<obs_output_t *>(*it) != output)
+					continue;
+				// Resolved now rather than captured: LoadSettings() deletes
+				// every dock row and nulls the stored pointers, so a button
+				// read when the signal fired could already be gone.
+				auto button = std::get<QPushButton *>(*it);
+				if (button && !button->isChecked()) {
+					button->setChecked(true);
+					md->outputButtonStyle(button);
+				}
+				vendor_emit_output_state(std::get<std::string>(*it).c_str(), true);
+				break;
 			}
-		}
-	}
-	if (!name.empty())
-		vendor_emit_output_state(name.c_str(), true);
+		},
+		Qt::QueuedConnection);
 }
 
 void MultistreamDock::stream_output_stop(void *data, calldata_t *calldata)
 {
 	auto md = (MultistreamDock *)data;
-	auto output = (obs_output_t *)calldata_ptr(calldata, "output");
-	std::string name;
-	{
-		std::lock_guard<std::recursive_mutex> lock(md->outputs_mutex);
-		for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
-			if (std::get<obs_output_t *>(*it) != output)
-				continue;
-			name = std::get<std::string>(*it);
-			auto button = std::get<QPushButton *>(*it);
-			if (button && button->isChecked()) {
-				QMetaObject::invokeMethod(
-					button,
-					[button, md] {
-						button->setChecked(false);
-						md->outputButtonStyle(button);
-					},
-					Qt::QueuedConnection);
-			}
-			if (!md->exiting)
-				QMetaObject::invokeMethod(md, [output] { obs_output_release(output); }, Qt::QueuedConnection);
-			md->outputs.erase(it);
-			break;
-		}
-	}
 	//const char *last_error = (const char *)calldata_ptr(calldata, "last_error");
-	if (!name.empty())
-		vendor_emit_output_state(name.c_str(), false);
+	auto trip = output_trip_ref(calldata);
+	if (!trip)
+		return;
+	QMetaObject::invokeMethod(
+		md,
+		[md, trip] {
+			// UI thread from here on.
+			auto output = trip.get();
+			for (auto it = md->outputs.begin(); it != md->outputs.end(); it++) {
+				if (std::get<obs_output_t *>(*it) != output)
+					continue;
+				auto button = std::get<QPushButton *>(*it);
+				if (button && button->isChecked()) {
+					button->setChecked(false);
+					md->outputButtonStyle(button);
+				}
+				// Copied before the erase, which invalidates the entry.
+				std::string name = std::get<std::string>(*it);
+				md->outputs.erase(it);
+				// The entry owned a reference; erasing it drops that one. The
+				// trip reference is separate and outlives this statement.
+				// At exit libobs is already tearing outputs down and this
+				// reference has been handed over, so leave it alone.
+				if (!md->exiting)
+					obs_output_release(output);
+				vendor_emit_output_state(name.c_str(), false);
+				break;
+			}
+			// If the entry is already gone somebody else -- the replace path in
+			// StartOutputInternal(), or ~MultistreamDock -- erased and released
+			// it and emitted the event themselves. Doing nothing here is what
+			// keeps that from being a double release.
+		},
+		Qt::QueuedConnection);
 }
 
 void MultistreamDock::ApiInfo(QString info)
@@ -1576,15 +1615,12 @@ const char *MultistreamDock::RemoteStartOutput(const QString &name)
 	// in that window would fall through to StartOutputInternal, which tears the
 	// existing output down and builds a new one -- so a client that retried
 	// would keep killing its own connection attempt.
-	{
-		std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-		for (auto it = outputs.begin(); it != outputs.end(); it++) {
-			if (std::get<std::string>(*it) != nameUtf8.constData())
-				continue;
-			blog(LOG_INFO, "[Aitum Multistream] remote start ignored, '%s' is already starting or active",
-			     nameUtf8.constData());
-			return "already_starting_or_active";
-		}
+	for (auto it = outputs.begin(); it != outputs.end(); it++) {
+		if (std::get<std::string>(*it) != nameUtf8.constData())
+			continue;
+		blog(LOG_INFO, "[Aitum Multistream] remote start ignored, '%s' is already starting or active",
+		     nameUtf8.constData());
+		return "already_starting_or_active";
 	}
 
 	obs_data_t *found = nullptr;
@@ -1633,7 +1669,6 @@ const char *MultistreamDock::RemoteStartOutput(const QString &name)
 const char *MultistreamDock::RemoteStopOutput(const QString &name)
 {
 	auto nameUtf8 = name.toUtf8();
-	std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
 	for (auto it = outputs.begin(); it != outputs.end(); it++) {
 		if (std::get<std::string>(*it) != nameUtf8.constData())
 			continue;
@@ -1755,13 +1790,10 @@ void MultistreamDock::FillOutputs(obs_data_t *response_data)
 			// start while the main stream is active.
 			bool requires_main = !advanced || !venc || !*venc || !aenc || !*aenc;
 			bool active = false;
-			{
-				std::lock_guard<std::recursive_mutex> lock(outputs_mutex);
-				for (auto it = outputs.begin(); it != outputs.end(); it++) {
-					if (std::get<std::string>(*it) == name) {
-						active = obs_output_active(std::get<obs_output_t *>(*it));
-						break;
-					}
+			for (auto it = outputs.begin(); it != outputs.end(); it++) {
+				if (std::get<std::string>(*it) == name) {
+					active = obs_output_active(std::get<obs_output_t *>(*it));
+					break;
 				}
 			}
 			auto entry = obs_data_create();

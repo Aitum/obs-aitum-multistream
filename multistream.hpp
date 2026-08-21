@@ -36,6 +36,11 @@ private:
 	video_t *mainVideo = nullptr;
 	std::vector<video_t *> oldVideo;
 
+	// Read and written only on the Qt UI thread, so it needs no lock. The one
+	// place that hears about an output from another thread -- the "start" and
+	// "stop" signal handlers, which libobs raises on the output's own thread --
+	// does nothing there but take a reference and hand a functor to the UI
+	// thread. See stream_output_start()/stream_output_stop() in multistream.cpp.
 	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
 	obs_data_array_t *vertical_outputs = nullptr;
 	bool exiting = false;
@@ -46,6 +51,25 @@ private:
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
+	// Outcome of building and starting one output.
+	//
+	// The two error fields serve different audiences and deliberately do not
+	// share a vocabulary: `error` is a stable snake_case identifier that goes
+	// out over the websocket API and should not change once clients depend on
+	// it, while `locale_key` is the obs_module_text() key for the dialog the
+	// dock shows. Either may be nullptr when there is nothing useful to say.
+	struct StartOutputResult {
+		bool ok = false;
+		const char *error = nullptr;
+		const char *locale_key = nullptr;
+	};
+
+	// Builds and starts an output. Contains no UI, so the websocket vendor can
+	// call it without a dialog appearing on an unattended machine.
+	StartOutputResult StartOutputInternal(obs_data_t *settings, QPushButton *streamButton);
+
+	// Dock-button entry point: confirmation dialog, StartOutputInternal, then a
+	// warning box if it failed.
 	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
 
 	void outputButtonStyle(QPushButton *button);
@@ -69,6 +93,18 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
+
+	// Remote control via the obs-websocket vendor ("aitum-multistream"). All
+	// of these run on the UI thread (see run_on_dock in multistream.cpp) and
+	// never show dialogs. The Remote* methods return nullptr on success, or an
+	// error string for the websocket response; the Fill* methods only read.
+	const char *RemoteStartOutput(const QString &name);
+	const char *RemoteStopOutput(const QString &name);
+	bool HasVerticalOutput(const QString &name);
+	const char *RemoteStartVerticalOutput(const QString &name);
+	const char *RemoteStopVerticalOutput(const QString &name);
+	void FillStatus(obs_data_t *response_data);
+	void FillOutputs(obs_data_t *response_data);
 };
 
 class AspectRatioPixmapLabel : public QLabel {

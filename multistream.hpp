@@ -8,7 +8,6 @@
 #include <QString>
 #include <QTimer>
 #include <QVBoxLayout>
-#include <mutex>
 
 class OBSBasicSettings;
 
@@ -37,14 +36,11 @@ private:
 	video_t *mainVideo = nullptr;
 	std::vector<video_t *> oldVideo;
 
-	// Guards `outputs`. It is read on the UI thread (the refresh timer, the
-	// dock buttons, the websocket vendor) and written from an output's own
-	// signal thread by stream_output_stop(), which erases entries.
-	//
-	// Recursive because obs_output_force_stop() raises "stop" synchronously on
-	// the calling thread, so a caller that already holds the lock re-enters it
-	// through stream_output_stop().
-	std::recursive_mutex outputs_mutex;
+	// Read and written only on the Qt UI thread, so it needs no lock. The one
+	// place that hears about an output from another thread -- the "start" and
+	// "stop" signal handlers, which libobs raises on the output's own thread --
+	// does nothing there but take a reference and hand a functor to the UI
+	// thread. See stream_output_start()/stream_output_stop() in multistream.cpp.
 	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
 	obs_data_array_t *vertical_outputs = nullptr;
 	bool exiting = false;

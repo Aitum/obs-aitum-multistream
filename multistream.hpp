@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config-dialog.hpp"
+#include "obs-websocket-api.h"
 #include <obs.h>
 #include <obs-frontend-api.h>
 #include <QFrame>
@@ -41,6 +42,8 @@ private:
 	bool exiting = false;
 	bool finished_loading = false;
 
+	obs_websocket_vendor vendor = nullptr;
+
 	void LoadSettingsFile();
 	void LoadSettings();
 	void LoadOutput(obs_data_t *data, bool vertical);
@@ -62,6 +65,12 @@ private:
 	static void stream_output_stop(void *data, calldata_t *calldata);
 	static void stream_output_start(void *data, calldata_t *calldata);
 
+	static void vendor_request_version(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_get_outputs(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_start_output(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_stop_output(obs_data_t *request_data, obs_data_t *response_data, void *self);
+
+
 private slots:
 	void ApiInfo(QString info);
 
@@ -69,6 +78,7 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
+	void LoadWebsocket();
 };
 
 class AspectRatioPixmapLabel : public QLabel {

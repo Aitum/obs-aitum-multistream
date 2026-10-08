@@ -879,6 +879,9 @@ bool MultistreamDock::StartOutput(obs_data_t *settings, QPushButton *streamButto
 			continue;
 		}
 		auto old = std::get<obs_output_t *>(*it);
+		signal_handler_t *signal = obs_output_get_signal_handler(old);
+		signal_handler_disconnect(signal, "start", stream_output_start, this);
+		signal_handler_disconnect(signal, "stop", stream_output_stop, this);
 		auto service = obs_output_get_service(old);
 		if (obs_output_active(old)) {
 			obs_output_force_stop(old);

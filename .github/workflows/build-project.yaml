@@ -73,7 +73,7 @@ jobs:
 
   macos-build:
     name: Build for macOS 🍏
-    runs-on: macos-latest
+    runs-on: macos-15
     needs: check-event
     defaults:
       run:

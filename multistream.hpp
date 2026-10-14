@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config-dialog.hpp"
+#include <obs-websocket-api.h>
 #include <obs.h>
 #include <obs-frontend-api.h>
 #include <QFrame>
@@ -36,40 +37,28 @@ private:
 	video_t *mainVideo = nullptr;
 	std::vector<video_t *> oldVideo;
 
-	// Read and written only on the Qt UI thread, so it needs no lock. The one
-	// place that hears about an output from another thread -- the "start" and
-	// "stop" signal handlers, which libobs raises on the output's own thread --
-	// does nothing there but take a reference and hand a functor to the UI
-	// thread. See stream_output_start()/stream_output_stop() in multistream.cpp.
+	// UI-thread-only state. Output signal handlers queue work to this thread.
 	std::vector<std::tuple<std::string, obs_output_t *, QPushButton *>> outputs;
 	obs_data_array_t *vertical_outputs = nullptr;
 	bool exiting = false;
 	bool finished_loading = false;
+
+	obs_websocket_vendor vendor = nullptr;
 
 	void LoadSettingsFile();
 	void LoadSettings();
 	void LoadOutput(obs_data_t *data, bool vertical);
 	void SaveSettings();
 
-	// Outcome of building and starting one output.
-	//
-	// The two error fields serve different audiences and deliberately do not
-	// share a vocabulary: `error` is a stable snake_case identifier that goes
-	// out over the websocket API and should not change once clients depend on
-	// it, while `locale_key` is the obs_module_text() key for the dialog the
-	// dock shows. Either may be nullptr when there is nothing useful to say.
+	// Keep websocket error identifiers separate from translatable dialog keys.
 	struct StartOutputResult {
 		bool ok = false;
 		const char *error = nullptr;
 		const char *locale_key = nullptr;
 	};
 
-	// Builds and starts an output. Contains no UI, so the websocket vendor can
-	// call it without a dialog appearing on an unattended machine.
 	StartOutputResult StartOutputInternal(obs_data_t *settings, QPushButton *streamButton);
 
-	// Dock-button entry point: confirmation dialog, StartOutputInternal, then a
-	// warning box if it failed.
 	bool StartOutput(obs_data_t *settings, QPushButton *streamButton);
 
 	void outputButtonStyle(QPushButton *button);
@@ -87,6 +76,21 @@ private:
 	static void stream_output_stop(void *data, calldata_t *calldata);
 	static void stream_output_start(void *data, calldata_t *calldata);
 
+	// Static callbacks resolve the live dock through run_on_dock().
+	static void vendor_request_version(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_get_outputs(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_start_output(obs_data_t *request_data, obs_data_t *response_data, void *self);
+	static void vendor_request_stop_output(obs_data_t *request_data, obs_data_t *response_data, void *self);
+
+	enum class VendorOutputAction { Start, Stop };
+	static void vendor_request_output_action(obs_data_t *request_data, obs_data_t *response_data, VendorOutputAction action);
+	void vendor_emit_output_state(obs_output_t *output, bool active);
+
+	// UI-thread-only helpers; remote actions never show dialogs.
+	const char *RemoteStartOutput(const QString &name);
+	const char *RemoteStopOutput(const QString &name);
+	void FillOutputs(obs_data_t *response_data);
+
 private slots:
 	void ApiInfo(QString info);
 
@@ -94,14 +98,7 @@ public:
 	MultistreamDock(QWidget *parent = nullptr);
 	~MultistreamDock();
 	void LoadVerticalOutputs(bool firstLoad = true);
-
-	// Remote control via the obs-websocket vendor ("aitum-multistream"). All
-	// of these run on the UI thread (see run_on_dock in multistream.cpp) and
-	// never show dialogs. The Remote* methods return nullptr on success, or an
-	// error string for the websocket response; the Fill* methods only read.
-	const char *RemoteStartOutput(const QString &name);
-	const char *RemoteStopOutput(const QString &name);
-	void FillOutputs(obs_data_t *response_data);
+	void LoadWebsocket();
 };
 
 class AspectRatioPixmapLabel : public QLabel {

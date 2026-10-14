@@ -77,6 +77,7 @@ private:
 	void storeMainStreamEncoders();
 
 	void AskUpdate();
+	const char *RemoteVerticalOutput(const QString &name, bool start);
 
 	QIcon streamActiveIcon = QIcon(":/aitum/media/streaming.svg");
 	QIcon streamInactiveIcon = QIcon(":/aitum/media/stream.svg");
@@ -100,10 +101,6 @@ public:
 	// error string for the websocket response; the Fill* methods only read.
 	const char *RemoteStartOutput(const QString &name);
 	const char *RemoteStopOutput(const QString &name);
-	bool HasVerticalOutput(const QString &name);
-	const char *RemoteStartVerticalOutput(const QString &name);
-	const char *RemoteStopVerticalOutput(const QString &name);
-	void FillStatus(obs_data_t *response_data);
 	void FillOutputs(obs_data_t *response_data);
 };
 

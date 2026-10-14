@@ -126,24 +126,32 @@ async def main():
     ap.add_argument("--password", default="")
     ap.add_argument("--port", type=int, default=4455)
     ap.add_argument("--output", default=None, help="name of a main-canvas output to exercise")
+    ap.add_argument("--vertical-output", help="optional Vertical Canvas output to exercise via the same requests")
+    ap.add_argument("--stress-vertical-start", action="store_true",
+                    help="retry vertical start during main-stream teardown; may crash OBS (isolated testing only)")
     args = ap.parse_args()
+    if args.stress_vertical_start and not args.vertical_output:
+        ap.error("--stress-vertical-start requires --vertical-output")
 
     obs = await connect(args.port, args.password)
     print("connected to obs-websocket\n")
 
     # --- vendor is registered at all -------------------------------------
-    st = await obs.vendor("status")
-    check("vendor 'aitum-multistream' is registered and answers 'status'",
-          st.get("success") is True, json.dumps(st))
+    st = await obs.vendor("version")
+    check("vendor 'aitum-multistream' is registered and answers 'version'",
+          st.get("success") is True and bool(st.get("version")), json.dumps(st))
     if st.get("__transport_error"):
         print("\nThe vendor did not respond -- is the plugin loaded?")
         return 1
 
     # --- get_outputs, and the stream-key check ---------------------------
     go = await obs.vendor("get_outputs")
-    outs = go.get("outputs", [])
-    check("get_outputs lists the configured outputs",
-          go.get("success") is True, json.dumps(go)[:400])
+    all_outputs = go.get("outputs", [])
+    check("get_outputs lists both canvases with upstream's vertical discriminator",
+          go.get("success") is True
+          and all(type(o.get("vertical")) is bool for o in all_outputs)
+          and "vertical_outputs" not in go, json.dumps(go)[:400])
+    outs = [o for o in all_outputs if o.get("vertical") is False]
 
     blob = json.dumps(go)
     leaked = [k for k in ("stream_key", "key", "bearer_token") if f'"{k}"' in blob]
@@ -163,12 +171,17 @@ async def main():
 
     # --- unknown name ----------------------------------------------------
     r = await obs.vendor("start_output", {"name": "__no_such_output__"})
-    check("start_output with an unknown name reports output_not_found",
-          r.get("success") is False and r.get("error") == "output_not_found", json.dumps(r))
+    check("start_output preserves upstream's unknown-name error",
+          r.get("success") is False and r.get("error") == "Output not found", json.dumps(r))
 
-    r = await obs.vendor("start_vertical_output", {"name": "__no_such_output__"})
-    check("start_vertical_output with an unknown name reports output_not_found",
-          r.get("success") is False and r.get("error") == "output_not_found", json.dumps(r))
+    r = await obs.vendor("stop_output", {"name": "__no_such_output__"})
+    check("stop_output preserves upstream's unknown-name error",
+          r.get("success") is False and r.get("error") == "Output not found", json.dumps(r))
+
+    for action in ("start_output", "stop_output"):
+        r = await obs.vendor(action)
+        check(f"{action} preserves upstream's missing-name error",
+              r.get("success") is False and r.get("error") == "Missing name", json.dumps(r))
 
     # --- main stream down ------------------------------------------------
     stream = (await obs.request("GetStreamStatus"))["responseData"]
@@ -200,23 +213,23 @@ async def main():
 
     # --- the double-start guard, hit immediately while connecting --------
     r2 = await obs.vendor("start_output", {"name": name})
-    check("an immediate second start_output is refused, not honoured",
-          r2.get("success") is False and r2.get("error") == "already_starting_or_active",
-          json.dumps(r2))
+    check("an immediate second start_output is an idempotent success",
+          r2.get("success") is True, json.dumps(r2))
 
     await obs.pump(6)
     go2 = await obs.vendor("get_outputs")
-    still = next((o for o in go2.get("outputs", []) if o["name"] == name), {})
+    still = next((o for o in go2.get("outputs", [])
+                  if o["name"] == name and o.get("vertical") is False), {})
     check("the output survived the second start and is active",
           still.get("active") is True, json.dumps(still))
 
     # --- vendor events ----------------------------------------------------
     evs = obs.drain_vendor_events()
+    event_name = f"aitum_multi_output_{name}"
     started = [e for e in evs
-               if e.get("eventType") == "output_state_changed"
-               and e.get("eventData", {}).get("name") == name
-               and e.get("eventData", {}).get("active") is True]
-    check("an output_state_changed event was emitted on start", bool(started),
+               if e.get("eventType") == "output_started"
+               and e.get("eventData") == {"name": event_name}]
+    check("exactly one upstream output_started event was emitted", len(started) == 1,
           json.dumps(evs)[:300] if evs else "no vendor events received")
 
     # --- stop -------------------------------------------------------------
@@ -225,15 +238,14 @@ async def main():
     await obs.pump(6)
     evs = obs.drain_vendor_events()
     stopped = [e for e in evs
-               if e.get("eventType") == "output_state_changed"
-               and e.get("eventData", {}).get("name") == name
-               and e.get("eventData", {}).get("active") is False]
-    check("an output_state_changed event was emitted on stop", bool(stopped),
+               if e.get("eventType") == "output_stopped"
+               and e.get("eventData") == {"name": event_name}]
+    check("exactly one upstream output_stopped event was emitted", len(stopped) == 1,
           json.dumps(evs)[:300] if evs else "no vendor events received")
 
     r = await obs.vendor("stop_output", {"name": name})
-    check("stop_output on an already-stopped output reports output_not_running",
-          r.get("success") is False and r.get("error") == "output_not_running", json.dumps(r))
+    check("stop_output on an already-stopped output is an idempotent success",
+          r.get("success") is True, json.dumps(r))
 
     # --- the output can be started again after a stop ---------------------
     r = await obs.vendor("start_output", {"name": name})
@@ -243,7 +255,37 @@ async def main():
     await obs.vendor("stop_output", {"name": name})
     await asyncio.sleep(2)
     await obs.request("StopStream")
+    if not args.stress_vertical_start:
+        await obs.pump(2)
 
+    if args.vertical_output:
+        vertical_name = args.vertical_output
+        check("get_outputs includes the selected vertical output in the combined list",
+              any(o["name"] == vertical_name and o.get("vertical") is True for o in all_outputs),
+              json.dumps(all_outputs)[:600])
+        r = await obs.vendor("start_output", {"name": vertical_name})
+        check("start_output routes to Vertical Canvas", r.get("success") is True, json.dumps(r))
+        if args.stress_vertical_start:
+            r = await obs.vendor("start_output", {"name": vertical_name})
+            check("vertical start retry during connection succeeds", r.get("success") is True, json.dumps(r))
+        await obs.pump(6)
+        state = await obs.vendor("get_outputs")
+        active = next((o for o in state.get("outputs", [])
+                       if o["name"] == vertical_name and o.get("vertical") is True), {})
+        check("the vertical output is active", active.get("active") is True, json.dumps(active))
+        r = await obs.vendor("start_output", {"name": vertical_name})
+        check("starting an active vertical output is an idempotent success", r.get("success") is True, json.dumps(r))
+        r = await obs.vendor("stop_output", {"name": vertical_name})
+        check("stop_output routes to Vertical Canvas", r.get("success") is True, json.dumps(r))
+        await obs.pump(6)
+        state = await obs.vendor("get_outputs")
+        stopped = next((o for o in state.get("outputs", [])
+                        if o["name"] == vertical_name and o.get("vertical") is True), {})
+        check("the vertical output stopped", stopped.get("active") is False, json.dumps(stopped))
+        r = await obs.vendor("stop_output", {"name": vertical_name})
+        check("repeated vertical stop is an idempotent success", r.get("success") is True, json.dumps(r))
+
+    await obs.ws.close()
     print()
     failed = [n for n, ok in RESULTS if ok is False]
     print(f"{sum(1 for _, ok in RESULTS if ok is True)} passed, {len(failed)} failed, "

@@ -1,0 +1,16 @@
+{
+    "display_name": "Aitum Multistream",
+    "id": "7b65690a-1c83-47e8-a0d8-4da89c6cd5e3",
+    "version": "1.0.9",
+    "authors": ["Aitum", "Exeldro"],
+    "name": "aitum-multistream",
+    "description": "A multistream plugin for OBS.",
+    "long_description": "Aitum Multistream allows you to stream everywhere from a single instance of OBS. Twitch, YouTube, TikTok, anywhere and everywhere you want.",
+    "urls": {
+        "repository": "https://github.com/Aitum/obs-aitum-multistream",
+        "website": "https://aitum.tv/products/multi",
+        "support": "https://aitum.tv/support"
+    },
+    "has_banner": false,
+    "has_icon": false
+}

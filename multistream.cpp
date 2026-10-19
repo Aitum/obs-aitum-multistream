@@ -32,8 +32,10 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 	if (!file || !file->buffer.num) {
 		return true;
 	}
-
-	QMetaObject::invokeMethod(multistream_dock, "ApiInfo", Q_ARG(QString, QString::fromUtf8((const char *)file->buffer.array)));
+	if (multistream_dock) {
+		QMetaObject::invokeMethod(multistream_dock, "ApiInfo",
+					  Q_ARG(QString, QString::fromUtf8((const char *)file->buffer.array)));
+	}
 
 	if (version_update_info) {
 		update_info_destroy(version_update_info);
@@ -44,18 +46,23 @@ bool version_info_downloaded(void *param, struct file_download_data *file)
 
 bool obs_module_load(void)
 {
+	if (obs_get_module("aitum-stream-suite")) {
+		blog(LOG_ERROR, "[Aitum Multistream] Aitum Stream Suite detected, please uninstall it to use Aitum Multistream.");
+		return false;
+	}
 	blog(LOG_INFO, "[Aitum-Multistream] loaded version %s", PROJECT_VERSION);
 
 	const auto main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	multistream_dock = new MultistreamDock(main_window);
 	obs_frontend_add_dock_by_id("AitumMultistreamDock", obs_module_text("AitumMultistream"), multistream_dock);
 
-	std::string url = "https://api.aitum.tv/plugin/multi";
+	std::string url = "https://api.aitum.tv/plugin/multi?version=" PROJECT_VERSION;
 	const char *pguid = config_get_string(obs_frontend_get_app_config(), "General", "InstallGUID");
 	if (pguid) {
-		url += "?uuid=";
+		url += "&uuid=";
 		url += pguid;
 	}
+
 
 	version_update_info =
 		update_info_create_single("[Aitum Multistream]", "OBS", url.c_str(), version_info_downloaded, nullptr);
@@ -64,7 +71,12 @@ bool obs_module_load(void)
 
 void obs_module_post_load()
 {
-	if (multistream_dock) {
+	if (obs_get_module("aitum-stream-suite")) {
+		obs_frontend_remove_dock("AitumMultistreamDock");
+		if (multistream_dock) {
+			multistream_dock->deleteLater();
+		}
+	}else if (multistream_dock) {
 		multistream_dock->LoadVerticalOutputs(true);
 		multistream_dock->LoadWebsocket();
 	}

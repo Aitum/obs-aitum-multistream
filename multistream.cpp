@@ -529,6 +529,7 @@ void MultistreamDock::frontend_event(enum obs_frontend_event event, void *privat
 	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
 		md->finished_loading = true;
 		md->LoadSettingsFile();
+		md->LoadVerticalOutputs(false);
 		if (!md->newer_version_available.isEmpty()) {
 			md->AskUpdate();
 		}

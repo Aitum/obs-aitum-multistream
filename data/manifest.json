@@ -1,7 +1,7 @@
 {
     "display_name": "Aitum Multistream",
     "id": "7b65690a-1c83-47e8-a0d8-4da89c6cd5e3",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "authors": ["Aitum", "Exeldro"],
     "name": "aitum-multistream",
     "description": "A multistream plugin for OBS.",
